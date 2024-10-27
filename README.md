@@ -1,3 +1,10 @@
+# Syslog Server and Client
+
+This repository contains two Go programs:
+
+1. `syslog_server.go`: A syslog server that listens for logs over both UDP and TCP protocols, supports log forwarding, message storage, and a web-based UI for viewing and managing logs.
+2. `syslog_client.go`: A syslog client that allows users to send log messages to a syslog server using both UDP and TCP protocols, supports standard syslog message formats, and provides customizable options.
+
 # Syslog Server 
 
 ## Overview
