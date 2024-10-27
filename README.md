@@ -30,7 +30,9 @@ The `syslog_server.go` implements a **syslog server** that listens for logs over
 - You can chain multiple syslog_servers together to forward logs to multiple upstream syslog servers.
 
 ### 3. Web UI with Pico.css and HTMX
+
 <img width="1734" alt="screenshot" src="https://github.com/user-attachments/assets/67d998c9-998b-47bc-9683-844f0018adb6">
+
 - A **web-based user interface** to view and manage logs.
 - Everything included in one file and binary. Easy to deploy.
 - Runs at port 8080 by default (can be changed via -api flag).
