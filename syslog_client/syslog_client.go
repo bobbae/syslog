@@ -140,7 +140,8 @@ func parseSyslogLine(line string, facility int) string {
 		return ""
 	}
 	log.Printf("Received syslog message: %v|%v|%v|%v|%v|%v", parts[0], parts[1], parts[2], parts[3], parts[4], parts[5])
-	date := parts[0] + " " + parts[1] + " " + parts[2]
+	date := parseDate(parts[0] + " " + parts[1] + " " + parts[2])
+
 	host := parts[3]
 	app := parts[4]
 	app = strings.TrimSuffix(app, ":")
@@ -165,6 +166,15 @@ func parseSyslogLine(line string, facility int) string {
 	priority := facility*8 + severity
 
 	return fmt.Sprintf("<%d>%s %s %s: %s", priority, date, host, app, message)
+}
+
+func parseDate(dateStr string) string {
+	parsedTime, err := time.Parse("Jan 2 15:04:05", dateStr) // Example: Oct 25 15:04:05
+	if err != nil {
+		log.Printf("Invalid date format: %s. Using current time.", dateStr)
+		return time.Now().Format(time.RFC3339)
+	}
+	return parsedTime.Format(time.RFC3339)
 }
 
 // parseSeverity converts severity string to integer.
