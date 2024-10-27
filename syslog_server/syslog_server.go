@@ -266,7 +266,6 @@ func uiHandler(handler *logFileHandler) http.HandlerFunc {
     <main class="container">
         <h1>Syslog Server</h1>
         <section>
-            <h2>Recent Messages</h2>
             <input type="text" id="search-input" placeholder="Search messages..." onkeyup="searchTable()">
             <button id="load-button" hx-get="/messages" hx-target="#syslog-tbody" hx-swap="innerHTML">Load Messages</button>
             <button id="clear-button" hx-post="/clear" hx-target="#syslog-tbody" hx-swap="innerHTML">Clear Table</button>
