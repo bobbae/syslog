@@ -1,0 +1,76 @@
+Jan 26 00:00:01 web-01.example.com systemd[1]: Starting System Logging Service...
+Jan 26 00:00:02 db-master.example.com mysqld[1234]: [Note] mysqld (mysqld 8.0.32) starting as process 1234
+Jan 26 00:00:03 firewall.example.com pf[891]: ALERT: Blocked incoming connection from 203.0.113.45 (TCP/445)
+Jan 26 00:00:04 elk-01.example.com elasticsearch[2345]: [INFO] [node-1] starting Elasticsearch v7.17.9
+Jan 26 00:00:05 lb-01.example.com haproxy[3456]: [WARNING] Server web-02/wordpress1 is DOWN, reason: Layer4 connection problem
+Jan 26 00:00:06 web-02.example.com apache2[4567]: [ERROR] [client 192.168.1.100] ModSecurity: Access denied with code 403
+Jan 26 00:00:07 mail-01.example.com postfix/smtpd[5678]: connect from unknown[192.0.2.123]
+Jan 26 00:00:08 desktop-045.example.com gnome-shell[6789]: [INFO] Window manager warning: Buggy client sent a _NET_ACTIVE_WINDOW message
+Jan 26 00:00:09 router-core-01.example.com bgpd[7890]: BGP: neighbor 10.0.0.1 up
+Jan 26 00:00:10 storage-nas-01.example.com kernel: [ALERT] Volume /dev/md0: degraded array, disk failure detected
+Jan 26 00:00:11 vpn-gw-01.example.com openvpn[8901]: 10.8.0.123:54321 TLS Auth Error: incoming packet authentication failed
+Jan 26 00:00:12 dev-jenkins.example.com jenkins[9012]: [INFO] Starting Jenkins build for project: frontend-app #1234
+Jan 26 00:00:13 k8s-master.example.com kubelet[1357]: [INFO] Successfully pulled image "nginx:1.21"
+Jan 26 00:00:14 win-dc01.example.com Microsoft-Windows-Security-Auditing[2468]: User Account Created - Security ID: S-1-5-21
+Jan 26 00:00:15 monitoring.example.com nagios[3579]: [ALERT] Host 'web-03' is DOWN - CRITICAL - Host Unreachable
+Jan 26 00:00:16 cache-01.example.com varnishd[4680]: Child (4681) Started
+Jan 26 00:00:17 backup-01.example.com bacula-dir[5791]: [INFO] Starting backup job: FullBackup.2024-01-26
+Jan 26 00:00:18 dns-primary.example.com named[6802]: client @0x7f8c84059420 192.168.1.102#54321: query failed
+Jan 26 00:00:19 proxy-01.example.com squid[7913]: [WARNING] IMPORTANT: Duplicate URL in cache_dir: http://example.com
+Jan 26 00:00:20 web-01.example.com nginx[8024]: 192.168.1.50 - - [26/Jan/2024:00:00:20 +0000] "GET /api/v1/users HTTP/1.1" 200 1234
+Jan 26 00:00:21 db-slave-01.example.com mysqld[9135]: [ERROR] Error reading relay log index file
+Jan 26 00:00:22 firewall.example.com snort[1246]: [ALERT] [1:12345:6] Possible SSH brute force attack [Classification: Attempted Admin Privilege Gain]
+Jan 26 00:00:23 elk-01.example.com logstash[2357]: [INFO] Pipeline started {"pipeline.id"=>"main"}
+Jan 26 00:00:24 lb-02.example.com keepalived[3468]: [INFO] VRRP_Instance(VI_1) Transition to MASTER STATE
+Jan 26 00:00:25 web-03.example.com php-fpm[4579]: [WARNING] [pool www] server reached pm.max_children setting (50)
+Jan 26 00:00:26 mail-02.example.com amavis[5680]: (25253-01) Passed CLEAN {RelayedInbound}
+Jan 26 00:00:27 desktop-112.example.com pulseaudio[6791]: [ERROR] [pulseaudio] bluez5-util.c: GetManagedObjects() failed
+Jan 26 00:00:28 router-edge-01.example.com snmpd[7802]: Connection from UDP: [10.0.0.50]:161->[10.0.0.2]
+Jan 26 00:00:29 storage-san-01.example.com multipathd[8913]: sda: add missing path
+Jan 26 00:00:30 vpn-gw-02.example.com ipsec[9024]: [IKE] IKE_SA client-vpn[123] established between 10.0.1.1[CN=vpn.example.com]...10.0.1.2
+Jan 26 00:00:31 dev-gitlab.example.com gitlab-runsvdir[1135]: Ruby/ObjectSpace garbage_collector: allocated/retained 12345/67
+Jan 26 00:00:32 k8s-worker-01.example.com containerd[2246]: [INFO] pulling image "redis:6.2"
+Jan 26 00:00:33 win-fs01.example.com Microsoft-Windows-FileServices[3357]: Share 'UserData' was accessed by user 'DOMAIN\user1'
+Jan 26 00:00:34 monitoring.example.com zabbix_server[4468]: [INFO] sensor: temperature threshold exceeded on server-room-01
+Jan 26 00:00:35 cache-02.example.com redis[5579]: [WARNING] RDB: 32 MB of memory used by copy-on-write
+Jan 26 00:00:36 backup-02.example.com rsync[6680]: [INFO] sent 1234567 bytes  received 89012 bytes  total size 9876543
+Jan 26 00:00:37 dns-secondary.example.com named[7791]: zone 'example.com/IN' loaded serial 2024012601
+Jan 26 00:00:38 proxy-02.example.com traefik[8802]: [INFO] Router app@docker Rules: Host(`app.example.com`)
+Jan 26 00:00:39 web-01.example.com fail2ban[9913]: [NOTICE] Ban 203.0.113.100
+Jan 26 00:00:40 db-master.example.com postgres[1024]: [FATAL] terminating connection due to administrator command
+Jan 26 00:00:41 firewall.example.com iptables[2135]: [ALERT] Dropped INVALID SYN packet from 198.51.100.75:54321
+Jan 26 00:00:42 elk-01.example.com kibana[3246]: [WARNING] Response truncated due to size limits
+Jan 26 00:00:43 lb-01.example.com haproxy[4357]: [NOTICE] Proxy 'stats': Server 'FRONTEND' is UP
+Jan 26 00:00:44 web-02.example.com systemd[5468]: [INFO] Started Apache HTTP Server.
+Jan 26 00:00:01 ids-01.example.com snort[1234]: [ALERT] [1:2008577:4] ET SCAN Potential SSH Brute Force Attack in Progress [Classification: Attempted Admin Privilege Gain] [Priority: 1] {TCP} 203.0.113.45:39120 -> 192.168.1.10:22
+Jan 26 00:00:02 firewall.example.com pf[891]: [ALERT] Blocked outbound connection to known C&C server 185.123.123.123 (TCP/6667)
+Jan 26 00:00:03 waf-01.example.com modsecurity[2345]: [ERROR] [client 192.0.2.50] ModSecurity: SQL Injection Attack Detected via libinjection [file "/etc/nginx/rules/REQUEST-942-APPLICATION-ATTACK-SQLI.conf"] [line "44"] [id "942100"]
+Jan 26 00:00:04 vpn-gw-01.example.com openvpn[3456]: WARNING: Failed TLS handshake: peer certificate validation failed
+Jan 26 00:00:05 web-01.example.com fail2ban[4567]: [NOTICE] Ban 203.0.113.46 [ID: 12345] - Multiple failed login attempts
+Jan 26 00:00:06 win-dc01.example.com Microsoft-Windows-Security-Auditing[5678]: [ALERT] Account locked out - Account Name: admin - Workstation: CLIENT01
+Jan 26 00:00:07 siem-01.example.com ossec[6789]: [ALERT] Rule: 5503 Level: 10 - Multiple authentication failures from same source IP (203.0.113.47).
+Jan 26 00:00:08 proxy-01.example.com squid[7890]: [WARNING] SECURITY ALERT: XSS Attack detected in URI: /search?q=<script>alert(1)</script>
+Jan 26 00:00:09 mail-01.example.com amavis[8901]: (12345-01) SPAM probability=0.99, score=15.2 - [203.0.113.48] - Blocked message
+Jan 26 00:00:10 db-master.example.com audit[9012]: [ALERT] Unauthorized SELECT on sensitive_data table from user 'app_user' [IP: 192.168.1.100]
+Jan 26 00:00:11 ids-01.example.com suricata[1122]: [ALERT] [ET MALWARE] Possible Emotet C2 Channel Detection [Classification: A Network Trojan was Detected] {TCP} 192.168.1.101:49873 -> 45.123.123.123:443
+Jan 26 00:00:12 firewall.example.com pfsense[2233]: [ALERT] Port scan detected from 203.0.113.49 - 1000 ports in 60 seconds
+Jan 26 00:00:13 waf-01.example.com modsecurity[3344]: [ERROR] [client 192.0.2.51] ModSecurity: XSS Attack Detected. Pattern match "(?i:(?:<(?:(?:apple|objec)t|isindex|embed|style|form|meta)\b[^>]*?>))" at ARGS:comment
+Jan 26 00:00:14 vpn-gw-02.example.com strongswan[4455]: [IKE] authentication of '203.0.113.50' with RSA signature failed
+Jan 26 00:00:15 web-02.example.com nginx[5566]: [ERROR] 203.0.113.51 - - [26/Jan/2024:00:00:15 +0000] "POST /wp-login.php HTTP/1.1" 403 571 "WordPress brute force attempt"
+Jan 26 00:00:16 siem-01.example.com qradar[6677]: [ALERT] Offense 12346 created: Potential Data Exfiltration - Large outbound transfer to unknown IP
+Jan 26 00:00:17 ids-02.example.com snort[7788]: [ALERT] [1:2027899:3] ET POLICY Data Post to Public Web Server [Classification: Potential Corporate Privacy Violation] [Priority: 1] {TCP} 192.168.1.102:52431 -> 203.0.113.52:80
+Jan 26 00:00:18 firewall.example.com fortigate[8899]: [ALERT] Application Control: TOR browser detected (src=192.168.1.103)
+Jan 26 00:00:19 waf-01.example.com modsecurity[9900]: [ERROR] [client 192.0.2.52] ModSecurity: PHP Injection Attack Detected. Pattern match "php://" at ARGS:file
+Jan 26 00:00:20 win-dc01.example.com Microsoft-Windows-Security-Auditing[1133]: [ALERT] Security-Auditing 4625: Account failed to log on. Status: 0xC000006D. SubStatus: 0xC0000064. Multiple attempts from IP: 203.0.113.53
+Jan 26 00:00:21 proxy-02.example.com zscaler[2244]: [ALERT] Data Loss Prevention: Credit Card Numbers detected in outbound traffic
+Jan 26 00:00:22 mail-02.example.com spamassassin[3355]: [ALERT] Message contains suspicious attachment: invoice.exe
+Jan 26 00:00:23 db-slave-01.example.com audit[4466]: [ALERT] Privilege escalation attempt detected - User: dbuser - Command: ALTER USER 'root'@'localhost' IDENTIFIED BY 'newpass'
+Jan 26 00:00:24 ids-01.example.com crowdstrike[5577]: [ALERT] Detection: Suspicious PowerShell Command Execution [Tactic: Execution] [Technique: T1059.001]
+Jan 26 00:00:25 firewall.example.com pf[6688]: [ALERT] Blocked incoming connection from known malicious IP 185.234.234.234 (TCP/445)
+Jan 26 00:00:26 siem-01.example.com splunk[7799]: [ALERT] Correlation Rule: Multiple failed admin logins followed by successful login from different geolocation
+Jan 26 00:00:27 web-03.example.com modsecurity[8800]: [ERROR] [client 192.0.2.53] ModSecurity: Remote File Inclusion Attack Detected. Pattern match "(?:(?:https?|ftps?|php|data)://)" at ARGS:url
+Jan 26 00:00:28 vpn-gw-01.example.com openvas[9911]: [ALERT] High-Risk Vulnerability Detected: CVE-2024-1234 on host 192.168.1.104
+Jan 26 00:00:29 win-dc01.example.com Microsoft-Windows-Security-Auditing[1144]: [ALERT] A privileged service was installed - Service Name: "RemoteAdmin" - Account Name: "SYSTEM"
+Jan 26 00:00:30 ids-02.example.com snort[2255]: [ALERT] [1:2008578:4] ET EXPLOIT Possible Log4j JNDI Injection Attempt [Classification: Web Application Attack] [Priority: 1]
+Jan 26 00:00:31 firewall.example.com pfsense[3366]: [ALERT] High number of UDP packets blocked - Possible DDoS Attack [src=203.0.113.54]
+Jan 26 00:00:32 waf-01.example.com modsecurity[4477]: [ERROR] [client 192.0.2.54] ModSecurity: Directory Traversal Attack Detected - Pattern match "(?:\.\.[\/\\].*|\.\.[\\/].*)" at ARGS:path
