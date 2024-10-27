@@ -25,6 +25,7 @@ The `syslog_server.go` implements a **syslog server** that listens for logs over
   - Configurable **forwarding priority level**.
 
 ### 3. Web UI with Pico.css and HTMX
+<img width="1734" alt="screenshot" src="https://github.com/user-attachments/assets/9a791e51-ee19-4955-919a-1f1210212916">
 - A **web-based user interface** to view and manage logs.
 - Everything included in one file and binary. Easy to deploy.
 - Runs at port 8080 by default (can be changed via -api flag).
