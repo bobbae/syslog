@@ -1,4 +1,4 @@
-# Syslog Server - Documentation
+# Syslog Server 
 
 ## Overview
 The `syslog_server.go` implements a **syslog server** that listens for logs over both **UDP** and **TCP** protocols. It supports **log forwarding**, message storage, and a **web-based UI** for viewing and managing logs. The server is designed to handle real-time log collection efficiently and provides configurable options through command-line flags.
