@@ -5,10 +5,14 @@ This repository contains two Go programs:
 1. `syslog_server.go`: A syslog server that listens for logs over both UDP and TCP protocols, supports log forwarding, message storage, and a web-based UI for viewing and managing logs.
 2. `syslog_client.go`: A syslog client that allows users to send log messages to a syslog server using both UDP and TCP protocols, supports standard syslog message formats, and provides customizable options.
 
+# Building
+
+Run `go build` in each directory.
+
 # Syslog Server 
 
-## Overview
-The `syslog_server.go` implements a **syslog server** that listens for logs over both **UDP** and **TCP** protocols. It supports **log forwarding**, message storage, and a **web-based UI** for viewing and managing logs. The server is designed to handle real-time log collection efficiently and provides configurable options through command-line flags.
+
+The `syslog_server.go` implements a **syslog server** that listens for logs over both **UDP** and **TCP** protocols. It supports **log forwarding**, rotating compressed message storage, and a **web-based UI** for viewing and managing logs. The server is designed to handle real-time log collection  and provides configurable options through command-line flags. All of this is done in a small self-contained Go program that can be easily modified and deployed and run on a variety of platforms.
 
 ---
 
@@ -23,6 +27,7 @@ The `syslog_server.go` implements a **syslog server** that listens for logs over
 - Can forward logs to an **upstream syslog server** using:
   - **UDP or TCP** protocol.
   - Configurable **forwarding priority level**.
+- You can chain multiple syslog_servers together to forward logs to multiple upstream syslog servers.
 
 ### 3. Web UI with Pico.css and HTMX
 <img width="1734" alt="screenshot" src="https://github.com/user-attachments/assets/67d998c9-998b-47bc-9683-844f0018adb6">
@@ -55,9 +60,7 @@ The `syslog_server.go` implements a **syslog server** that listens for logs over
   - **Logs received** and **logs forwarded**.
   - Available via the **`/stats`** REST endpoint.
 
-### 9. Concurrency and Thread Safety
-- Uses **mutex locks** to ensure thread-safe access to shared data.
-- **Goroutines** for handling multiple clients and forwarding messages asynchronously.
+
 
 ---
 
@@ -68,10 +71,16 @@ The `syslog_server.go` implements a **syslog server** that listens for logs over
 ```bash
 curl -X POST -d "<16>Oct 17 14:32:00 myhost myapp: my message" http://localhost:8080/syslog 
 ```
+- sending message to syslog_server using `logger` command on Linux
+```bash
+logger --rfc3164 -d -n localhost -P 514 "myapp: my message"
+```
 
-# Syslog Client - Features
+You can also send message to syslog_server using the syslog_client.go program.
 
-## Overview
+# Syslog Client 
+
+
 This `syslog_client.go` allows users to send log messages to a syslog server using both **TCP** and **UDP** protocols. It supports standard syslog message formats and provides configurable options through command-line flags.
 
 ---
