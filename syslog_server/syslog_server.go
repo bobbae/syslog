@@ -280,7 +280,7 @@ func uiHandler(handler *logFileHandler) http.HandlerFunc {
                         <th>Message</th>
                     </tr>
                 </thead>
-                <tbody id="syslog-tbody" hx-get="/messages" hx-trigger="load, every 5s" hx-swap="innerHTML">
+                <tbody id="syslog-tbody" hx-get="/messages" hx-trigger="load, every 5s hx-swap="innerHTML">
                     %s
                 </tbody>
             </table>
