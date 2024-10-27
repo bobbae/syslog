@@ -98,9 +98,10 @@ This `syslog_client.go` allows users to send log messages to a syslog server usi
 
 - Customizable options for flexibility:
   
-  ```bash
+```bash
   go run syslog_client.go -server "localhost:514" -proto udp -priority 13 -app "myapp" "Test log message"
 ```
+
 - Sending messages from a file:
 ```bash
 go run syslog_client.go -inputfile input.txt
