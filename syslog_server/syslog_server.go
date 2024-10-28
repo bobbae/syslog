@@ -40,10 +40,10 @@ type logFileHandler struct {
 }
 
 type Config struct {
-	MessagePattern string `json:"messagepattern"`
-	Severity       int    `json:"severity"`
-	AppName        string `json:"appname"`
-	HostName       string `json:"hostname"`
+	messagepattern string 
+	severity       int    
+	appname        string 
+	hostname       string 
 }
 
 type syslogMsg struct {
@@ -64,7 +64,7 @@ func createLogFileHandler(filename string, maxSize int, forwardAddr,
 		disableLogging:    false,
 		disableForwarding: false,
 		messages:          []string{},
-		config:            &Config{Severity: 6, AppName: "", MessagePattern: ""}, // Default severity
+		config:            &Config{severity: 7, appname: "", messagepattern: ""},
 	}
 	if filename == "" {
 		handler.disableLogging = true
@@ -197,11 +197,7 @@ func renderMessageRows(handler *logFileHandler) string {
 	defer handler.mu.Unlock()
 
 	config := handler.getConfig()
-	messagePattern := config.MessagePattern
-	severity := config.Severity
-	appName := config.AppName
-	hostname := config.HostName
-
+	
 	if len(handler.messages) == 0 {
 		return "<tr><td colspan='5'>No messages yet.</td></tr>"
 	}
@@ -215,16 +211,16 @@ func renderMessageRows(handler *logFileHandler) string {
 		}
 
 		// Apply filtering based on configuration
-		if appName != "" && !strings.Contains(syslogMsg.Appname, appName) {
+		if config.appname != "" && !strings.Contains(syslogMsg.Appname, config.appname) {
 			continue
 		}
-		if hostname != "" && !strings.Contains(syslogMsg.Hostname, hostname) {
+		if config.hostname != "" && !strings.Contains(syslogMsg.Hostname, config.hostname) {
 			continue
 		}
-		if messagePattern != ""  {
-			if isRegexp(messagePattern) {
-				if messagePattern != "" {
-					matched, err := regexp.MatchString(messagePattern, syslogMsg.Message)
+		if config.messagepattern != ""  {
+			if isRegexp(config.messagepattern) {
+				if config.messagepattern != "" {
+					matched, err := regexp.MatchString(config.messagepattern, syslogMsg.Message)
 					if err != nil {
 						log.Printf("Error matching regex: %v", err)
 						continue
@@ -234,7 +230,7 @@ func renderMessageRows(handler *logFileHandler) string {
 					}
 				}
 			} else {
-				if !strings.Contains(syslogMsg.Message, messagePattern) {
+				if !strings.Contains(syslogMsg.Message, config.messagepattern) {
 					continue
 				}
 			}
@@ -244,7 +240,7 @@ func renderMessageRows(handler *logFileHandler) string {
 			log.Printf("Error parsing priority: %v", err)
 			continue
 		}
-		if msgSeverity > severity {
+		if msgSeverity > config.severity {
 			continue
 		}
 		result.WriteString("<tr>")
@@ -323,6 +319,27 @@ func clearHandler(handler *logFileHandler) http.HandlerFunc {
 
 func configHandler(handler *logFileHandler) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodGet {
+			w.Header().Set("Content-Type", "text/html")	
+			w.WriteHeader(http.StatusOK)
+			fmt.Fprintf(w,`
+				<label for="messagepattern">Message Pattern:</label>
+				<input type="text" id="messagepattern" name="messagepattern" value="%s" ><br><br>
+	
+				<label for="severity">Severity (0-7):</label>
+				<input type="number" id="severity" name="severity" min="0" max="7" value="%d"><br><br>
+	
+				<label for="appname">App Name:</label>
+				<input type="text" id="appname" name="appname" value="%s"><br><br>
+
+				<label for="hostname">Host Name:</label>
+				<input type="text" id="hostname" name="hostname" value="%s"><br><br>`,
+				handler.config.messagepattern, handler.config.severity, 
+				handler.config.appname, handler.config.hostname,
+			)
+
+			return
+		}
 		if r.Method != http.MethodPost {
 			http.Error(w, "Only POST method is allowed", http.StatusMethodNotAllowed)
 			return
@@ -332,18 +349,15 @@ func configHandler(handler *logFileHandler) http.HandlerFunc {
 			http.Error(w, "Failed to parse form data", http.StatusBadRequest)
 			return
 		}
-		appName := r.FormValue("appname")
-		hostname := r.FormValue("hostname")
-		messagePattern := r.FormValue("messagepattern")
 		severity, _ := strconv.Atoi(r.FormValue("severity"))
 
 		defer r.Body.Close()
 
 		config := Config{
-			AppName:        appName,
-			HostName:       hostname,
-			MessagePattern: messagePattern,
-			Severity:       severity,
+			appname:        r.FormValue("appname"),
+			hostname:       r.FormValue("hostname"),
+			messagepattern: r.FormValue("messagepattern"),
+			severity:       severity,
 		}
 
 		handler.updateConfig(&config)
