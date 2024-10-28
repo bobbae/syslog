@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Syslog Server</title>
+    <link rel="stylesheet" href="https://unpkg.com/@picocss/pico@latest/css/pico.min.css">
+    <script src="https://unpkg.com/htmx.org@1.9.4"></script>
+    <script src="/static/search.js"></script>
+</head>
+<body>
+    <header></header>
+    <main class="container">
+    <h1>Syslog Server</h1>
+    <div>
+        <input type="text" id="search-input" placeholder="Search messages..." onkeyup="searchTable()">
+        <button hx-get="/messages" hx-target="#syslog-tbody" class="button">Load Logs</button>
+        <button hx-post="/clear" hx-target="#syslog-tbody"  class="button">Clear Logs</button>
+        <table id="syslog-table" hx-get="/messages" hx-target="#syslog-tbody" hx-trigger="load, every 5s" >
+            <thead>
+                <tr>
+                    <th>#</th>
+                    <th>Timestamp</th>
+                    <th>Hostname</th>
+                    <th>Appname</th>
+                    <th>Message</th>
+                </tr>
+            </thead>
+            <tbody id="syslog-tbody">
+                {{range $index,  $log := .MessageRows}}
+                <tr>
+                    <td>{{$log.Index}}</td>
+                    <td>{{$log.Timestamp}}</td>
+                    <td>{{$log.Hostname}}</td>
+                    <td>{{$log.Appname}}</td>
+                    <td>{{$log.Message}}</td>
+                </tr>
+                {{else}}
+                <tr><td colspan="5">No messages yet.</td></tr>
+                {{end}}
+            </tbody>
+        </table>
+    </div>
+    </main>
+    <footer></footer>
+</body>
+</html>
