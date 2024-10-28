@@ -277,6 +277,14 @@ func syslogHandler(handler *logFileHandler) http.HandlerFunc {
 	}
 }
 
+func renderPage(w http.ResponseWriter, page string, tmpl *template.Template) {
+	w.Header().Set("Content-Type", "text/html")
+	err := tmpl.ExecuteTemplate(w, page+".html", nil)
+	if err != nil {
+		log.Printf("render template error %s %v", page, err)
+		http.Error(w, "render template error", http.StatusInternalServerError)
+	}
+}
 
 func main() {
 	address := flag.String("addr", ":514", "Syslog server address")
@@ -316,33 +324,21 @@ func main() {
 		log.Fatalf("Failed to parse template: %v", err)
 	}
 	tmpl, err := template.ParseFS(embeddedFiles, "templates/*.html")
+	if err != nil {
+		log.Fatalf("Failed to parse template: %v", err)
+	}
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "text/html")
-		err = tmpl.ExecuteTemplate(w, "index.html", nil)
-		if err != nil {
-			log.Printf("template error %v", err)
-			http.Error(w, "template error", http.StatusInternalServerError)
-		}
+		renderPage(w, "logs", tmpl)
+	})
+	http.HandleFunc("/logs", func(w http.ResponseWriter, r *http.Request) {
+		renderPage(w, "logs", tmpl)
+	})
+	http.HandleFunc("/settings", func(w http.ResponseWriter, r *http.Request) {
+		renderPage(w, "settings", tmpl)
 	})
 	http.HandleFunc("/messages", messagesHandler(logHandler))
 	http.HandleFunc("/clear", clearHandler(logHandler))
 	http.HandleFunc("/syslog", syslogHandler(logHandler))
-	http.HandleFunc("/settings", func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "text/html")
-		err = tmpl.ExecuteTemplate(w, "settings.html", nil)
-		if err != nil {
-			log.Printf("template error %v", err)
-			http.Error(w, "template error", http.StatusInternalServerError)
-		}
-	})
-	http.HandleFunc("/logs", func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "text/html")
-		err = tmpl.ExecuteTemplate(w, "index.html", nil)
-		if err != nil {
-			log.Printf("template error %v", err)
-			http.Error(w, "template error", http.StatusInternalServerError)
-		}
-	})
 
 	go func() {
 		log.Printf("Web UI and REST API listening on %s", *apiAddr)

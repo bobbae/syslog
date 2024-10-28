@@ -1,23 +1,21 @@
-{{ define "logs" }}
-<div class="container">
-    <div class="grid">
-        <input type="text" id="search-input" placeholder="Search messages..." onkeyup="searchTable()">
-        <div><button class="outline secondary" hx-post="/clear" hx-target="#syslog-tbody" hx-swap="innerHTML" class="button">Clear Table</button></div>
-    </div>
+<!DOCTYPE html>
+<html>
+<head>
+    {{template "head" .}}
+</head>
+<body>
+    <header>
+        {{template "header" .}}
+    </header>
     
-    <table id="syslog-table" hx-get="/messages" hx-target="#syslog-tbody" hx-trigger="load, every 5s" hx-swap="innerHTML">
-        <thead>
-            <tr>
-                <th>#</th>
-                <th>Timestamp</th>
-                <th>Hostname</th>
-                <th>Appname</th>
-                <th>Message</th>
-            </tr>
-        </thead>
-        <tbody id="syslog-tbody">
-            <tr><td colspan="5">No messages yet.</td></tr>
-        </tbody>
-    </table>
-</div>
-{{ end }}
+    <main class="container">
+        <container id="main">
+            {{template "logtable" .}}
+        </container>
+    </main>
+    
+    <footer>
+        {{template "footer" .}}
+    </footer>
+</body>
+</html>
