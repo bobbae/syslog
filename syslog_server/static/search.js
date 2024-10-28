@@ -1,8 +1,10 @@
 function searchTable() {
     var input, filter, table, tr, td, i, txtValue;
     input = document.getElementById("search-input");
+    if (!input) return; //Added check for input element
     filter = input.value.toUpperCase();
     table = document.getElementById("syslog-table");
+    if (!table) return; //Added check for table element
     tr = table.getElementsByTagName("tr");
 
     for (i = 1; i < tr.length; i++) {

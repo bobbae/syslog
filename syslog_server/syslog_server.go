@@ -11,6 +11,7 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"regexp"
 	"strconv"
 	"strings"
 	"sync"
@@ -34,6 +35,15 @@ type logFileHandler struct {
 	disableLogging    bool
 	disableForwarding bool
 	messages          []string // Added to store messages for web interface
+	config            *Config  // Added to store configuration
+	muConfig          sync.Mutex
+}
+
+type Config struct {
+	MessagePattern string `json:"messagepattern"`
+	Severity       int    `json:"severity"`
+	AppName        string `json:"appname"`
+	HostName       string `json:"hostname"`
 }
 
 type syslogMsg struct {
@@ -54,6 +64,7 @@ func createLogFileHandler(filename string, maxSize int, forwardAddr,
 		disableLogging:    false,
 		disableForwarding: false,
 		messages:          []string{},
+		config:            &Config{Severity: 6, AppName: "", MessagePattern: ""}, // Default severity
 	}
 	if filename == "" {
 		handler.disableLogging = true
@@ -165,9 +176,31 @@ func (lh *logFileHandler) clearMessages() {
 	lh.messages = []string{}
 }
 
+func (lh *logFileHandler) updateConfig(config *Config) {
+	lh.muConfig.Lock()
+	defer lh.muConfig.Unlock()
+	lh.config = config
+}
+
+func (lh *logFileHandler) getConfig() *Config {
+	lh.muConfig.Lock()
+	defer lh.muConfig.Unlock()
+	return lh.config
+}
+
+func isRegexp(str string) bool {
+	_, err := regexp.Compile(str)
+	return err == nil
+}
 func renderMessageRows(handler *logFileHandler) string {
 	handler.mu.Lock()
 	defer handler.mu.Unlock()
+
+	config := handler.getConfig()
+	messagePattern := config.MessagePattern
+	severity := config.Severity
+	appName := config.AppName
+	hostname := config.HostName
 
 	if len(handler.messages) == 0 {
 		return "<tr><td colspan='5'>No messages yet.</td></tr>"
@@ -178,6 +211,40 @@ func renderMessageRows(handler *logFileHandler) string {
 		syslogMsg, err := parseSyslogMessage(msg)
 		if err != nil {
 			log.Printf("Error parsing message: %v", err)
+			continue
+		}
+
+		// Apply filtering based on configuration
+		if appName != "" && !strings.Contains(syslogMsg.Appname, appName) {
+			continue
+		}
+		if hostname != "" && !strings.Contains(syslogMsg.Hostname, hostname) {
+			continue
+		}
+		if messagePattern != ""  {
+			if isRegexp(messagePattern) {
+				if messagePattern != "" {
+					matched, err := regexp.MatchString(messagePattern, syslogMsg.Message)
+					if err != nil {
+						log.Printf("Error matching regex: %v", err)
+						continue
+					}
+					if !matched {
+						continue
+					}
+				}
+			} else {
+				if !strings.Contains(syslogMsg.Message, messagePattern) {
+					continue
+				}
+			}
+		}
+		_, msgSeverity, err := parsePriority(msg)
+		if err != nil {
+			log.Printf("Error parsing priority: %v", err)
+			continue
+		}
+		if msgSeverity > severity {
 			continue
 		}
 		result.WriteString("<tr>")
@@ -254,6 +321,37 @@ func clearHandler(handler *logFileHandler) http.HandlerFunc {
 	}
 }
 
+func configHandler(handler *logFileHandler) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			http.Error(w, "Only POST method is allowed", http.StatusMethodNotAllowed)
+			return
+		}
+		err := r.ParseForm()
+		if err != nil {
+			http.Error(w, "Failed to parse form data", http.StatusBadRequest)
+			return
+		}
+		appName := r.FormValue("appname")
+		hostname := r.FormValue("hostname")
+		messagePattern := r.FormValue("messagepattern")
+		severity, _ := strconv.Atoi(r.FormValue("severity"))
+
+		defer r.Body.Close()
+
+		config := Config{
+			AppName:        appName,
+			HostName:       hostname,
+			MessagePattern: messagePattern,
+			Severity:       severity,
+		}
+
+		handler.updateConfig(&config)
+		w.Header().Set("Content-Type", "text/html")
+		w.WriteHeader(http.StatusOK)
+	}
+}
+
 func syslogHandler(handler *logFileHandler) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost {
@@ -320,9 +418,6 @@ func main() {
 		http.ServeFile(w, r, "static/search.js")
 	})
 	http.Handle("/static/", http.StripPrefix("/static/", http.FileServer(http.FS(embeddedFiles))))
-	if err != nil {
-		log.Fatalf("Failed to parse template: %v", err)
-	}
 	tmpl, err := template.ParseFS(embeddedFiles, "templates/*.html")
 	if err != nil {
 		log.Fatalf("Failed to parse template: %v", err)
@@ -339,6 +434,7 @@ func main() {
 	http.HandleFunc("/messages", messagesHandler(logHandler))
 	http.HandleFunc("/clear", clearHandler(logHandler))
 	http.HandleFunc("/syslog", syslogHandler(logHandler))
+	http.HandleFunc("/config", configHandler(logHandler)) // Add config handler
 
 	go func() {
 		log.Printf("Web UI and REST API listening on %s", *apiAddr)

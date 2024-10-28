@@ -10,7 +10,30 @@
     
     <main class="container">
         <container id="main">
-          <p>Settings</p>
+            <div class="grid">
+                <div>
+                    <form id="configForm" hx-post="/config" hx-swap="innerHTML" hx-target="#configResponse" >
+                        <label for="messagepattern">Message Pattern (regex):</label>
+                        <input type="text" id="messagepattern" name="messagepattern" ><br><br>
+            
+                        <label for="severity">Severity (0-7):</label>
+                        <input type="number" id="severity" name="severity" min="0" max="7" value="7"><br><br>
+            
+                        <label for="appname">App Name:</label>
+                        <input type="text" id="appname" name="appname"><br><br>
+
+                        <label for="hostname">Host Name:</label>
+                        <input type="text" id="hostName" name="hostname"><br><br>
+                        <div class="grid">
+                            <button type="submit" >
+                                Submit
+                            </button>
+                            <div></div>
+                        </div>
+                    </form>
+                </div>
+                <div id="configResponse"></div>    
+            </div>
         </container>
     </main>
     
