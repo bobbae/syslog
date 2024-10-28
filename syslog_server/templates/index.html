@@ -11,9 +11,12 @@
     <main class="container">
     <h1>Syslog Server</h1>
     <div>
-        <input type="text" id="search-input" placeholder="Search messages..." onkeyup="searchTable()">
-        <button hx-get="/messages" hx-target="#syslog-tbody" class="button">Load Logs</button>
-        <button hx-post="/clear" hx-target="#syslog-tbody"  class="button">Clear Logs</button>
+        <div class="grid">
+            <input type="text" id="search-input" placeholder="Search messages..." onkeyup="searchTable()">
+
+            <div><button class="outline secondary" hx-post="/clear" hx-target="#syslog-tbody"  class="button">Clear Table</button>   </div>
+        </div>
+        
         <table id="syslog-table" hx-get="/messages" hx-target="#syslog-tbody" hx-trigger="load, every 5s" >
             <thead>
                 <tr>
