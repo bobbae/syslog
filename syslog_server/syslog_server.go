@@ -22,8 +22,6 @@ import (
 //go:embed static/*
 var embeddedFiles embed.FS
 
-
-// Struct to manage log file and forwarding settings
 type logFileHandler struct {
 	logger            *lumberjack.Logger
 	maxSize           int
@@ -38,7 +36,13 @@ type logFileHandler struct {
 	messages          []string // Added to store messages for web interface
 }
 
-// createLogFileHandler initializes a new log file handler with optional forwarding.
+type syslogMsg struct {
+	Timestamp string
+	Hostname  string
+	Appname   string
+	Message   string
+}
+
 func createLogFileHandler(filename string, maxSize int, forwardAddr,
 	forwardProto string, forwardLevel int) (*logFileHandler, error) {
 	handler := &logFileHandler{
@@ -74,7 +78,6 @@ func createLogFileHandler(filename string, maxSize int, forwardAddr,
 	return handler, nil
 }
 
-// setupForwardConnection establishes a persistent connection to the upstream syslog server.
 func (lh *logFileHandler) setupForwardConnection() error {
 	conn, err := net.Dial(lh.forwardProto, lh.forwardAddr)
 	if err != nil {
@@ -103,7 +106,6 @@ func parsePriority(buf string) (int, int, error) {
 	return facility, severity, nil
 }
 
-// logMessage writes a message to the log file, forwards it if configured, and stores it for the web interface.
 func (lh *logFileHandler) logMessage(remoteAddr, message string) {
 	lh.mu.Lock()
 	defer lh.mu.Unlock()
@@ -132,7 +134,6 @@ func (lh *logFileHandler) logMessage(remoteAddr, message string) {
 	}
 }
 
-// forwardMessage sends the log message to the upstream syslog server.
 func (lh *logFileHandler) forwardMessage(message string) {
 	if lh.disableForwarding {
 		return
@@ -158,32 +159,12 @@ func (lh *logFileHandler) forwardMessage(message string) {
 	}
 }
 
-// clearMessages clears all stored messages.
 func (lh *logFileHandler) clearMessages() {
 	lh.mu.Lock()
 	defer lh.mu.Unlock()
 	lh.messages = []string{}
 }
 
-// handleStatsRequest returns server stats in HTML format.
-
-// uiHandler serves the HTML interface with HTMX and Pico.css.
-func uiHandler(handler *logFileHandler, tmpl *template.Template) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		data := struct {
-			MessageRows []*syslogMsg
-		}{
-			MessageRows: getSyslogs(handler),
-		}
-
-		w.Header().Set("Content-Type", "text/html")
-		if err := tmpl.Execute(w, data); err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-		}
-	}
-}
-
-// renderMessageRows dynamically generates HTML for the message rows.
 func renderMessageRows(handler *logFileHandler) string {
 	handler.mu.Lock()
 	defer handler.mu.Unlock()
@@ -210,33 +191,12 @@ func renderMessageRows(handler *logFileHandler) string {
 	return result.String()
 }
 
-func getSyslogs(handler *logFileHandler) []*syslogMsg {
-	handler.mu.Lock()
-	defer handler.mu.Unlock()
-
-	if len(handler.messages) == 0 {
-		return []*syslogMsg{}
-	}
-	var result []*syslogMsg
-	for i, msg := range handler.messages {
-		syslogMsg, err := parseSyslogMessage(msg)
-		if err != nil {
-			log.Printf("Error parsing message: %v", err)
-			continue
-		}
-		syslogMsg.Index = i + 1
-		result = append(result, syslogMsg)
-	}
-	return result
-}
-
 func cleanString(s string) string {
 	s = strings.ReplaceAll(s, "<script>", "<XXX>")
 	s = strings.ReplaceAll(s, "</script>", "</XXX>")
 	return strings.TrimSpace(s)
 }
 
-// parseSyslogMessage parses a syslog message into its components.
 func parseSyslogMessage(msg string) (*syslogMsg, error) {
 	if !strings.HasPrefix(msg, "<") {
 		return nil, fmt.Errorf("not a syslog message")
@@ -274,15 +234,6 @@ func parseSyslogMessage(msg string) (*syslogMsg, error) {
 	}, nil
 }
 
-type syslogMsg struct {
-	Index int
-	Timestamp string
-	Hostname  string
-	Appname   string
-	Message   string
-}
-
-// messagesHandler serves the list of messages via HTMX.
 func messagesHandler(handler *logFileHandler) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "text/html")
@@ -290,7 +241,6 @@ func messagesHandler(handler *logFileHandler) http.HandlerFunc {
 	}
 }
 
-// clearHandler clears all messages and returns an empty table body.
 func clearHandler(handler *logFileHandler) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost {
@@ -327,6 +277,7 @@ func syslogHandler(handler *logFileHandler) http.HandlerFunc {
 	}
 }
 
+
 func main() {
 	address := flag.String("addr", ":514", "Syslog server address")
 	logFile := flag.String("file", "", "Log file path")
@@ -356,17 +307,42 @@ func main() {
 		log.Fatalf("Failed to create log handler: %v", err)
 	}
 
-	tmpl := template.Must(template.ParseFS(embeddedFiles, "templates/index.html"))
-
 	http.HandleFunc("/static/search.js", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/javascript")
 		http.ServeFile(w, r, "static/search.js")
 	})
 	http.Handle("/static/", http.StripPrefix("/static/", http.FileServer(http.FS(embeddedFiles))))
-	http.HandleFunc("/", uiHandler(logHandler, tmpl))
+	if err != nil {
+		log.Fatalf("Failed to parse template: %v", err)
+	}
+	tmpl, err := template.ParseFS(embeddedFiles, "templates/*.html")
+	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/html")
+		err = tmpl.ExecuteTemplate(w, "index.html", nil)
+		if err != nil {
+			log.Printf("template error %v", err)
+			http.Error(w, "template error", http.StatusInternalServerError)
+		}
+	})
 	http.HandleFunc("/messages", messagesHandler(logHandler))
 	http.HandleFunc("/clear", clearHandler(logHandler))
 	http.HandleFunc("/syslog", syslogHandler(logHandler))
+	http.HandleFunc("/settings", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/html")
+		err = tmpl.ExecuteTemplate(w, "settings.html", nil)
+		if err != nil {
+			log.Printf("template error %v", err)
+			http.Error(w, "template error", http.StatusInternalServerError)
+		}
+	})
+	http.HandleFunc("/logs", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/html")
+		err = tmpl.ExecuteTemplate(w, "index.html", nil)
+		if err != nil {
+			log.Printf("template error %v", err)
+			http.Error(w, "template error", http.StatusInternalServerError)
+		}
+	})
 
 	go func() {
 		log.Printf("Web UI and REST API listening on %s", *apiAddr)
@@ -399,4 +375,3 @@ func main() {
 		logHandler.logMessage(remoteAddr.String(), message)
 	}
 }
-
