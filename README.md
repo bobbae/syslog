@@ -46,7 +46,6 @@ The `syslog_server.go` implements a **syslog server** that listens for logs over
 - **`GET /messages`**: Retrieve all stored messages.
 - **`POST /syslog`**: Submit a syslog message via HTTP.
 - **`POST /clear`**: Clear all stored messages.
-- **`GET /stats`**: Get server statistics in JSON format.
 
 ### 6. Configurable Log File Storage
 - Stores logs in compressed **rotating files**.
@@ -57,10 +56,6 @@ The `syslog_server.go` implements a **syslog server** that listens for logs over
 - Keeps a **persistent connection** to the upstream syslog server.
 - **Automatic reconnection** on failure.
 
-### 8. Real-Time Statistics
-- Tracks and displays:
-  - **Logs received** and **logs forwarded**.
-  - Available via the **`/stats`** REST endpoint.
 
 
 

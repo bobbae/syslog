@@ -1,10 +1,11 @@
 package main
 
 import (
-	"bufio"
+	"embed"
 	"encoding/json"
 	"flag"
 	"fmt"
+	"html/template"
 	"io"
 	"log"
 	"net"
@@ -13,21 +14,18 @@ import (
 	"strconv"
 	"strings"
 	"sync"
-	"sync/atomic"
 
 	"github.com/natefinch/lumberjack"
 )
 
-// Stats structure to track server metrics
-type stats struct {
-	LogsReceived  uint64 `json:"logs_received"`
-	LogsForwarded uint64 `json:"logs_forwarded"`
-}
+//go:embed templates/*
+//go:embed static/*
+var embeddedFiles embed.FS
+
 
 // Struct to manage log file and forwarding settings
 type logFileHandler struct {
 	logger            *lumberjack.Logger
-	lineCount         int
 	maxSize           int
 	filename          string
 	forwardAddr       string
@@ -35,7 +33,6 @@ type logFileHandler struct {
 	forwardConn       net.Conn
 	forwardLevel      int
 	mu                sync.Mutex
-	stats             *stats
 	disableLogging    bool
 	disableForwarding bool
 	messages          []string // Added to store messages for web interface
@@ -43,16 +40,13 @@ type logFileHandler struct {
 
 // createLogFileHandler initializes a new log file handler with optional forwarding.
 func createLogFileHandler(filename string, maxSize int, forwardAddr,
-	forwardProto string, forwardLevel int, stats *stats) (*logFileHandler, error) {
-
+	forwardProto string, forwardLevel int) (*logFileHandler, error) {
 	handler := &logFileHandler{
-		lineCount:         0,
 		maxSize:           maxSize,
 		filename:          filename,
 		forwardAddr:       forwardAddr,
 		forwardProto:      forwardProto,
 		forwardLevel:      forwardLevel,
-		stats:             stats,
 		disableLogging:    false,
 		disableForwarding: false,
 		messages:          []string{},
@@ -120,8 +114,6 @@ func (lh *logFileHandler) logMessage(remoteAddr, message string) {
 			log.Printf("Error writing to log file: %v", err)
 			return
 		}
-		atomic.AddUint64(&lh.stats.LogsReceived, 1)
-		lh.lineCount++
 	}
 
 	// Store message for web interface
@@ -164,7 +156,6 @@ func (lh *logFileHandler) forwardMessage(message string) {
 			log.Printf("Failed to forward message after reconnecting: %v", err)
 		}
 	}
-	atomic.AddUint64(&lh.stats.LogsForwarded, 1)
 }
 
 // clearMessages clears all stored messages.
@@ -174,150 +165,21 @@ func (lh *logFileHandler) clearMessages() {
 	lh.messages = []string{}
 }
 
-// handleStatsRequest returns server stats in JSON format.
-func handleStatsRequest(stats *stats) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(stats)
-	}
-}
-
-// Helper function to start a UDP server
-func startUDPServer(addr string, bufferSize int, handler *logFileHandler) {
-	udpAddr, err := net.ResolveUDPAddr("udp", addr)
-	if err != nil {
-		log.Fatalf("Error resolving UDP address: %v", err)
-	}
-
-	conn, err := net.ListenUDP("udp", udpAddr)
-	if err != nil {
-		log.Fatalf("Error starting UDP listener: %v", err)
-	}
-	defer conn.Close()
-
-	buffer := make([]byte, bufferSize)
-	for {
-		n, remoteAddr, err := conn.ReadFromUDP(buffer)
-		if err != nil {
-			log.Printf("Error reading UDP message: %v", err)
-			continue
-		}
-		message := strings.TrimSpace(string(buffer[:n]))
-		handler.logMessage(remoteAddr.String(), message)
-	}
-}
-
-// Helper function to start a TCP server
-func startTCPServer(addr string, handler *logFileHandler) {
-	listener, err := net.Listen("tcp", addr)
-	if err != nil {
-		log.Fatalf("Error starting TCP listener: %v", err)
-	}
-	defer listener.Close()
-
-	for {
-		conn, err := listener.Accept()
-		if err != nil {
-			log.Printf("Error accepting TCP connection: %v", err)
-			continue
-		}
-		go handleTCPConnection(conn, handler)
-	}
-}
-
-// Handle individual TCP connection
-func handleTCPConnection(conn net.Conn, handler *logFileHandler) {
-	defer conn.Close()
-
-	reader := bufio.NewReader(conn)
-	for {
-		message, err := reader.ReadString('\n')
-		if err != nil {
-			if err == io.EOF {
-				return
-			}
-			log.Printf("Error reading TCP message: %v", err)
-			return
-		}
-		handler.logMessage(conn.RemoteAddr().String(), strings.TrimSpace(message))
-	}
-}
+// handleStatsRequest returns server stats in HTML format.
 
 // uiHandler serves the HTML interface with HTMX and Pico.css.
-func uiHandler(handler *logFileHandler) http.HandlerFunc {
+func uiHandler(handler *logFileHandler, tmpl *template.Template) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		data := struct {
+			MessageRows []*syslogMsg
+		}{
+			MessageRows: getSyslogs(handler),
+		}
+
 		w.Header().Set("Content-Type", "text/html")
-		fmt.Fprintf(w, `
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Syslog Server</title>
-    <link rel="stylesheet" href="https://unpkg.com/@picocss/pico@latest/css/pico.min.css">
-    <script src="https://unpkg.com/htmx.org@1.9.4"></script>
-    <style>
-        #search-input, #clear-button {
-            margin-bottom: 1rem;
-        }
-    </style>
-</head>
-<body>
-    <main class="container">
-        <h1>Syslog Server</h1>
-        <section>
-            <input type="text" id="search-input" placeholder="Search messages..." onkeyup="searchTable()">
-            <button id="load-button" hx-get="/messages" hx-target="#syslog-tbody" hx-swap="innerHTML">Load Messages</button>
-            <button id="clear-button" hx-post="/clear" hx-target="#syslog-tbody" hx-swap="innerHTML">Clear Table</button>
-            <table id="syslog-table">
-                <thead>
-                    <tr>
-						<th>Index</th>
-                        <th>Timestamp</th>
-                        <th>Hostname</th>
-                        <th>Appname</th>
-                        <th>Message</th>
-                    </tr>
-                </thead>
-                <tbody id="syslog-tbody" hx-get="/messages" hx-trigger="load, every 5s hx-swap="innerHTML">
-                    %s
-                </tbody>
-            </table>
-        </section>
-    </main>
-    <script>
-    function searchTable() {
-        var input, filter, table, tr, td, i, txtValue;
-        input = document.getElementById("search-input");
-        filter = input.value.toUpperCase();
-        table = document.getElementById("syslog-table");
-        tr = table.getElementsByTagName("tr");
-
-        for (i = 1; i < tr.length; i++) {
-            td = tr[i].getElementsByTagName("td");
-            var display = false;
-            for (var j = 0; j < td.length; j++) {
-                if (td[j]) {
-                    txtValue = td[j].textContent || td[j].innerText;
-                    if (txtValue.toUpperCase().indexOf(filter) > -1) {
-                        display = true;
-                        break;
-                    }
-                }
-            }
-            tr[i].style.display = display ? "" : "none";
-        }
-    }
-
-    document.body.addEventListener('htmx:afterSwap', function(event) {
-        if (event.detail.target.id === 'syslog-tbody') {
-            searchTable();
-        }
-    });
-    </script>
-</body>
-</html>
-`, renderMessageRows(handler))
+		if err := tmpl.Execute(w, data); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+		}
 	}
 }
 
@@ -327,12 +189,11 @@ func renderMessageRows(handler *logFileHandler) string {
 	defer handler.mu.Unlock()
 
 	if len(handler.messages) == 0 {
-		return "<tr><td colspan='4'>No messages yet.</td></tr>"
+		return "<tr><td colspan='5'>No messages yet.</td></tr>"
 	}
 
 	var result strings.Builder
-	i := 0
-	for _, msg := range handler.messages {
+	for i, msg := range handler.messages {
 		syslogMsg, err := parseSyslogMessage(msg)
 		if err != nil {
 			log.Printf("Error parsing message: %v", err)
@@ -340,7 +201,6 @@ func renderMessageRows(handler *logFileHandler) string {
 		}
 		result.WriteString("<tr>")
 		result.WriteString(fmt.Sprintf("<td>%d</td>", i+1))
-		i++ 
 		result.WriteString(fmt.Sprintf("<td>%v</td>", syslogMsg.Timestamp))
 		result.WriteString(fmt.Sprintf("<td>%v</td>", syslogMsg.Hostname))
 		result.WriteString(fmt.Sprintf("<td>%v</td>", syslogMsg.Appname))
@@ -348,6 +208,26 @@ func renderMessageRows(handler *logFileHandler) string {
 		result.WriteString("</tr>")
 	}
 	return result.String()
+}
+
+func getSyslogs(handler *logFileHandler) []*syslogMsg {
+	handler.mu.Lock()
+	defer handler.mu.Unlock()
+
+	if len(handler.messages) == 0 {
+		return []*syslogMsg{}
+	}
+	var result []*syslogMsg
+	for i, msg := range handler.messages {
+		syslogMsg, err := parseSyslogMessage(msg)
+		if err != nil {
+			log.Printf("Error parsing message: %v", err)
+			continue
+		}
+		syslogMsg.Index = i + 1
+		result = append(result, syslogMsg)
+	}
+	return result
 }
 
 func cleanString(s string) string {
@@ -379,7 +259,7 @@ func parseSyslogMessage(msg string) (*syslogMsg, error) {
 	app := parts[4]
 	app = strings.TrimSuffix(app, ":")
 	message := parts[5]
-	
+
 	date = cleanString(date)
 	host = cleanString(host)
 	app = cleanString(app)
@@ -395,6 +275,7 @@ func parseSyslogMessage(msg string) (*syslogMsg, error) {
 }
 
 type syslogMsg struct {
+	Index int
 	Timestamp string
 	Hostname  string
 	Appname   string
@@ -405,7 +286,7 @@ type syslogMsg struct {
 func messagesHandler(handler *logFileHandler) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "text/html")
-		fmt.Fprintln(w, renderMessageRows(handler))
+		fmt.Fprint(w, renderMessageRows(handler))
 	}
 }
 
@@ -419,7 +300,7 @@ func clearHandler(handler *logFileHandler) http.HandlerFunc {
 
 		handler.clearMessages()
 		w.Header().Set("Content-Type", "text/html")
-		fmt.Fprintln(w, "<tr><td colspan='4'>No messages yet.</td></tr>")
+		fmt.Fprintln(w, "<tr><td colspan='5'>No messages yet.</td></tr>")
 	}
 }
 
@@ -448,7 +329,6 @@ func syslogHandler(handler *logFileHandler) http.HandlerFunc {
 
 func main() {
 	address := flag.String("addr", ":514", "Syslog server address")
-	bufferSize := flag.Int("buf", 1024, "Buffer size for UDP packets")
 	logFile := flag.String("file", "", "Log file path")
 	maxSize := flag.Int("maxsize", 10, "Max log file size in MB")
 	forwardAddr := flag.String("remote", "", "Upstream syslog server address")
@@ -470,18 +350,23 @@ func main() {
 		log.SetOutput(io.Discard)
 	}
 
-	stats := &stats{}
 	logHandler, err := createLogFileHandler(*logFile, *maxSize, *forwardAddr, *forwardProto,
-		*forwardLevel, stats)
+		*forwardLevel)
 	if err != nil {
 		log.Fatalf("Failed to create log handler: %v", err)
 	}
 
-	http.HandleFunc("/", uiHandler(logHandler))
+	tmpl := template.Must(template.ParseFS(embeddedFiles, "templates/index.html"))
+
+	http.HandleFunc("/static/search.js", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/javascript")
+		http.ServeFile(w, r, "static/search.js")
+	})
+	http.Handle("/static/", http.StripPrefix("/static/", http.FileServer(http.FS(embeddedFiles))))
+	http.HandleFunc("/", uiHandler(logHandler, tmpl))
 	http.HandleFunc("/messages", messagesHandler(logHandler))
-	http.HandleFunc("/syslog", syslogHandler(logHandler))
 	http.HandleFunc("/clear", clearHandler(logHandler))
-	http.HandleFunc("/stats", handleStatsRequest(stats))
+	http.HandleFunc("/syslog", syslogHandler(logHandler))
 
 	go func() {
 		log.Printf("Web UI and REST API listening on %s", *apiAddr)
@@ -490,9 +375,28 @@ func main() {
 		}
 	}()
 
-	var wg sync.WaitGroup
-	wg.Add(2)
-	go func() { defer wg.Done(); startUDPServer(*address, *bufferSize, logHandler) }()
-	go func() { defer wg.Done(); startTCPServer(*address, logHandler) }()
-	wg.Wait()
+	udpAddr, err := net.ResolveUDPAddr("udp", *address)
+	if err != nil {
+		log.Fatalf("Error resolving UDP address: %v", err)
+	}
+
+	udpConn, err := net.ListenUDP("udp", udpAddr)
+	if err != nil {
+		log.Fatalf("Error starting UDP listener: %v", err)
+	}
+	defer udpConn.Close()
+
+	log.Printf("Syslog server listening on UDP %s", *address)
+
+	buffer := make([]byte, 1024)
+	for {
+		n, remoteAddr, err := udpConn.ReadFromUDP(buffer)
+		if err != nil {
+			log.Printf("Error reading UDP message: %v", err)
+			continue
+		}
+		message := strings.TrimSpace(string(buffer[:n]))
+		logHandler.logMessage(remoteAddr.String(), message)
+	}
 }
+
