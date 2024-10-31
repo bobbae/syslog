@@ -246,7 +246,6 @@ func renderMessageRows(handler *logFileHandler) string {
 		if err != nil {
 			return "<tr><td colspan='5'>Error analyzing syslog messages: " + err.Error() + "</td></tr>"
 		}
-		fmt.Printf("%d messages %d anomalies\n", len(handler.messages), len(anomalies))
 		handler.messages = anomalies
 	}
 	var result strings.Builder
@@ -344,7 +343,6 @@ func findAnomalies(config LLMConfig, messages []string) ([]string, error) {
 	}
 	var completionResponse CompletionResponse
 	if err := json.Unmarshal(body, &completionResponse); err != nil {
-		fmt.Println("Error unmarshalling JSON:", err)
 		return nil, fmt.Errorf("failed to unmarshal response: %w", err)
 	}
 	anomalyReport := "ANOMALIES:"
@@ -505,7 +503,6 @@ func syslogHandler(handler *logFileHandler) http.HandlerFunc {
 		}
 		defer r.Body.Close()
 
-		fmt.Println("Received syslog message:", string(body))
 		handler.logMessage(r.RemoteAddr, string(body))
 
 		w.Header().Set("Content-Type", "application/json")
