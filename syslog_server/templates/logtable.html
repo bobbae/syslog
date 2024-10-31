@@ -5,7 +5,7 @@
         <div><button  hx-post="/clear" hx-target="#syslog-tbody" hx-swap="innerHTML" class="button">Clear Table</button></div>
     </div>
     
-    <table id="syslog-table" hx-get="/messages" hx-target="#syslog-tbody" hx-trigger="load, every 5s" hx-swap="innerHTML">
+    <table id="syslog-table" hx-get="/messages" hx-target="#syslog-tbody" hx-trigger="load, every 5s" hx-indicator="#spinner" hx-swap="innerHTML">
         <thead>
             <tr>
                 <th>#</th>

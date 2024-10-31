@@ -48,14 +48,9 @@ func findAnomalies(config LLMConfig, messages []string) ([]string, error) {
 		Messages: []Message{
 			{
 				Role: "user",
-				Content: `You are a syslog anomaly detection system. 
-							Please carefully analyze the following syslog messages and
-							carefully reason about each message to determine whether
-							a message is anomalous or not. Response should only
-							be the list of syslog messages that are anomalous. Response 
-							format should be in text format with each message on a new line.
-							Syslog messages:\n\n` +
-						strings.Join(messages, "\n "),
+				Content: `	Given a list of syslog messages, respond only with lines of text
+							that start with ANOMALIES: and followed by lines of anomalous syslog messages.
+							Syslog messages:\n` + strings.Join(messages, "\n "),
 			},
 		},
 	}
@@ -88,20 +83,20 @@ func findAnomalies(config LLMConfig, messages []string) ([]string, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to read response: %w", err)
 	}
-
+	
 	var completionResponse CompletionResponse
 	if err := json.Unmarshal(body, &completionResponse); err != nil {
 		fmt.Println("Error unmarshalling JSON:", err)
 		return nil, fmt.Errorf("failed to unmarshal response: %w", err)
 	}
-
-	anomalyReport := "Here is the list of anomalous syslog messages:"
+	anomalyReport := "ANOMALIES:"
 	anomalies := []string{}
 	for _, choice := range completionResponse.Choices {
 		idx := strings.Index(choice.Message.Content, anomalyReport)
 		if idx == 0 {
 			anomalies = strings.Split(choice.Message.Content[len(anomalyReport):], "\n")
 			anomalies = removeEmptyStrings(anomalies)
+			break
 		}
 	}
 
@@ -109,10 +104,10 @@ func findAnomalies(config LLMConfig, messages []string) ([]string, error) {
 }
 
 func main() {
-	apiKeyPtr := flag.String("apikey", "", "API key")
-	inputFilePtr := flag.String("inputfile", "", "Path to the syslog file")
-	urlPtr := flag.String("url", "https://api.openai.com/v1/chat/completions", "API endpoint URL")
-	modelPtr := flag.String("model", "gpt-3.5-turbo", "model name")
+	apiKeyPtr := flag.String("k", "", "API key")
+	inputFilePtr := flag.String("i", "", "Path to the syslog file")
+	urlPtr := flag.String("u", "https://api.openai.com/v1/chat/completions", "API endpoint URL")
+	modelPtr := flag.String("m", "gpt-3.5-turbo", "model name")
 	flag.Parse()
 
 	if *inputFilePtr == "" {

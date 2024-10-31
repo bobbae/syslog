@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"embed"
 	"encoding/json"
 	"flag"
@@ -40,10 +41,11 @@ type logFileHandler struct {
 }
 
 type Config struct {
-	messagepattern string 
-	severity       int    
-	appname        string 
-	hostname       string 
+	anomaliesOnly  bool
+	messagepattern string
+	severity       int
+	appname        string
+	hostname       string
 }
 
 type syslogMsg struct {
@@ -51,6 +53,31 @@ type syslogMsg struct {
 	Hostname  string
 	Appname   string
 	Message   string
+}
+
+type CompletionRequest struct {
+	Model    string    `json:"model"`
+	Messages []Message `json:"messages"`
+}
+
+type Message struct {
+	Role    string `json:"role"`
+	Content string `json:"content"`
+}
+
+type CompletionResponse struct {
+	ID      string   `json:"id"`
+	Choices []Choice `json:"choices"`
+}
+
+type Choice struct {
+	Message Message `json:"message"`
+}
+
+type LLMConfig struct {
+	apiKey string
+	model  string
+	url    string
 }
 
 func createLogFileHandler(filename string, maxSize int, forwardAddr,
@@ -197,11 +224,31 @@ func renderMessageRows(handler *logFileHandler) string {
 	defer handler.mu.Unlock()
 
 	config := handler.getConfig()
-	
+
 	if len(handler.messages) == 0 {
 		return "<tr><td colspan='5'>No messages yet.</td></tr>"
 	}
+	if config.anomaliesOnly {
+		apiKey := os.Getenv("OPENAI_API_KEY")
+		if apiKey == "" {
+			return "<tr><td colspan='5'>OpenAI API key not found. Please set the OPENAI_API_KEY environment variable and rerun the server.</td></tr>"
+		}
 
+		url := os.Getenv("OPENAI_API_URL")
+		if url == "" {
+			url = "https://api.openai.com/v1/chat/completions"
+		}
+		model := os.Getenv("OPENAI_MODEL")
+		if model == "" {
+			model = "gpt-3.5-turbo"
+		}
+		anomalies, err := findAnomalies(LLMConfig{apiKey: apiKey, url: url, model: model}, handler.messages)
+		if err != nil {
+			return "<tr><td colspan='5'>Error analyzing syslog messages: " + err.Error() + "</td></tr>"
+		}
+		fmt.Printf("%d messages %d anomalies\n", len(handler.messages), len(anomalies))
+		handler.messages = anomalies
+	}
 	var result strings.Builder
 	for i, msg := range handler.messages {
 		syslogMsg, err := parseSyslogMessage(msg)
@@ -217,7 +264,7 @@ func renderMessageRows(handler *logFileHandler) string {
 		if config.hostname != "" && !strings.Contains(syslogMsg.Hostname, config.hostname) {
 			continue
 		}
-		if config.messagepattern != ""  {
+		if config.messagepattern != "" {
 			if isRegexp(config.messagepattern) {
 				if config.messagepattern != "" {
 					matched, err := regexp.MatchString(config.messagepattern, syslogMsg.Message)
@@ -253,13 +300,81 @@ func renderMessageRows(handler *logFileHandler) string {
 	}
 	return result.String()
 }
+func findAnomalies(config LLMConfig, messages []string) ([]string, error) {
 
+	requestBody := CompletionRequest{
+		Model: config.model,
+		Messages: []Message{
+			{
+				Role: "user",
+				Content: `	Given a list of syslog messages, respond only with lines of text
+							that start with ANOMALIES: and followed by lines of anomalous syslog messages.
+							Syslog messages:\n` + strings.Join(messages, "\n "),
+			},
+		},
+	}
+
+	apiKey := config.apiKey
+	url := config.url
+	jsonData, err := json.Marshal(requestBody)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal request: %w", err)
+	}
+
+	req, err := http.NewRequest("POST", url, bytes.NewBuffer(jsonData))
+	if err != nil {
+		return nil, fmt.Errorf("failed to create request: %w", err)
+	}
+
+	if apiKey != "" {
+		req.Header.Set("Authorization", "Bearer "+apiKey)
+	}
+	req.Header.Set("Content-Type", "application/json")
+
+	client := &http.Client{}
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("failed to send request: %w", err)
+	}
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read response: %w", err)
+	}
+	var completionResponse CompletionResponse
+	if err := json.Unmarshal(body, &completionResponse); err != nil {
+		fmt.Println("Error unmarshalling JSON:", err)
+		return nil, fmt.Errorf("failed to unmarshal response: %w", err)
+	}
+	anomalyReport := "ANOMALIES:"
+	anomalies := []string{}
+	for _, choice := range completionResponse.Choices {
+		idx := strings.Index(choice.Message.Content, anomalyReport)
+		if idx == 0 {
+			anomalies = strings.Split(choice.Message.Content[len(anomalyReport):], "\n")
+			anomalies = removeEmptyStrings(anomalies)
+			break
+		}
+	}
+
+	return anomalies, nil
+}
 func cleanString(s string) string {
 	s = strings.ReplaceAll(s, "<script>", "<XXX>")
 	s = strings.ReplaceAll(s, "</script>", "</XXX>")
 	return strings.TrimSpace(s)
 }
 
+func removeEmptyStrings(s []string) []string {
+	var result []string
+	for _, str := range s {
+		if str != "" {
+			result = append(result, str)
+		}
+	}
+	return result
+}
 func parseSyslogMessage(msg string) (*syslogMsg, error) {
 	if !strings.HasPrefix(msg, "<") {
 		return nil, fmt.Errorf("not a syslog message")
@@ -320,21 +435,21 @@ func clearHandler(handler *logFileHandler) http.HandlerFunc {
 func configHandler(handler *logFileHandler) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if r.Method == http.MethodGet {
-			w.Header().Set("Content-Type", "text/html")	
+			w.Header().Set("Content-Type", "text/html")
 			w.WriteHeader(http.StatusOK)
-			fmt.Fprintf(w,`
+			fmt.Fprintf(w, `
+				<label for="anomaliesOnly">Anomalies Only:</label>
+				<input type="checkbox" id="anomaliesOnly" name="anomaliesOnly" %s><br><br>
 				<label for="messagepattern">Message Pattern:</label>
 				<input type="text" id="messagepattern" name="messagepattern" value="%s" ><br><br>
-	
 				<label for="severity">Severity (0-7):</label>
 				<input type="number" id="severity" name="severity" min="0" max="7" value="%d"><br><br>
-	
 				<label for="appname">App Name:</label>
 				<input type="text" id="appname" name="appname" value="%s"><br><br>
-
 				<label for="hostname">Host Name:</label>
 				<input type="text" id="hostname" name="hostname" value="%s"><br><br>`,
-				handler.config.messagepattern, handler.config.severity, 
+				checked(handler.config.anomaliesOnly),
+				handler.config.messagepattern, handler.config.severity,
 				handler.config.appname, handler.config.hostname,
 			)
 
@@ -350,10 +465,12 @@ func configHandler(handler *logFileHandler) http.HandlerFunc {
 			return
 		}
 		severity, _ := strconv.Atoi(r.FormValue("severity"))
+		anomaliesOnly := r.FormValue("anomaliesOnly") == "on" // Parse anomaliesOnly checkbox
 
 		defer r.Body.Close()
 
 		config := Config{
+			anomaliesOnly:  anomaliesOnly,
 			appname:        r.FormValue("appname"),
 			hostname:       r.FormValue("hostname"),
 			messagepattern: r.FormValue("messagepattern"),
@@ -364,6 +481,13 @@ func configHandler(handler *logFileHandler) http.HandlerFunc {
 		w.Header().Set("Content-Type", "text/html")
 		w.WriteHeader(http.StatusOK)
 	}
+}
+
+func checked(b bool) string {
+	if b {
+		return "checked"
+	}
+	return ""
 }
 
 func syslogHandler(handler *logFileHandler) http.HandlerFunc {
@@ -399,17 +523,20 @@ func renderPage(w http.ResponseWriter, page string, tmpl *template.Template) {
 }
 
 func main() {
-	address := flag.String("addr", ":514", "Syslog server address")
-	logFile := flag.String("file", "", "Log file path")
-	maxSize := flag.Int("maxsize", 10, "Max log file size in MB")
-	forwardAddr := flag.String("remote", "", "Upstream syslog server address")
-	forwardProto := flag.String("proto", "udp", "Forwarding protocol: 'tcp' or 'udp'")
-	forwardLevel := flag.Int("level", 6, "Forwarding priority level")
-	apiAddr := flag.String("api", ":8080", "REST API and Web UI address")
-	debuglog := flag.String("debug", "", "debug log file")
+	address := flag.String("a", ":514", "Syslog server address")
+	logFile := flag.String("f", "", "Log file path")
+	maxSize := flag.Int("m", 10, "Max log file size in MB")
+	forwardAddr := flag.String("r", "", "Upstream syslog server address")
+	forwardProto := flag.String("p", "udp", "Forwarding protocol: 'tcp' or 'udp'")
+	forwardLevel := flag.Int("l", 6, "Forwarding priority level")
+	apiAddr := flag.String("w", ":3001", "REST API and Web UI address")
+	debuglog := flag.String("d", "", "debug log file")
 	flag.Parse()
 
-	if *debuglog != "" {
+	if *debuglog == "stderr" {
+		log.SetOutput(os.Stderr)
+		log.SetFlags(0)
+	} else if *debuglog != "" {
 		f, err := os.OpenFile(*debuglog, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 		if err != nil {
 			log.Fatalf("Error opening debug log file: %v", err)
@@ -448,10 +575,10 @@ func main() {
 	http.HandleFunc("/messages", messagesHandler(logHandler))
 	http.HandleFunc("/clear", clearHandler(logHandler))
 	http.HandleFunc("/syslog", syslogHandler(logHandler))
-	http.HandleFunc("/config", configHandler(logHandler)) // Add config handler
+	http.HandleFunc("/config", configHandler(logHandler))
 
 	go func() {
-		log.Printf("Web UI and REST API listening on %s", *apiAddr)
+		fmt.Printf("Web UI and REST API listening on %s\n", *apiAddr)
 		if err := http.ListenAndServe(*apiAddr, nil); err != nil {
 			log.Fatalf("Failed to start Web UI and REST API: %v", err)
 		}
@@ -468,7 +595,7 @@ func main() {
 	}
 	defer udpConn.Close()
 
-	log.Printf("Syslog server listening on UDP %s", *address)
+	fmt.Printf("Syslog server listening on UDP %s\n", *address)
 
 	buffer := make([]byte, 1024)
 	for {

@@ -14,19 +14,22 @@ import (
 
 func main() {
 	// Command-line flags
-	protocol := flag.String("proto", "udp", "Protocol to use: 'udp' or 'tcp'")
-	address := flag.String("addr", "127.0.0.1:514", "Address of the syslog server")
-	facility := flag.Int("facility", 1, "Syslog facility level (0 to 23)")
-	severity := flag.Int("severity", 6, "Syslog severity level (0 to 7)")
-	host := flag.String("host", "localhost", "Host name")
-	app := flag.String("app", "syslog_client", "Application name")
-	message := flag.String("msg", "Test syslog message", "The message to send")
-	inputFile := flag.String("inputfile", "", "Input file containing syslog messages")
-	debuglog := flag.String("debug", "", "debug log file")
+	protocol := flag.String("p", "udp", "Protocol to use: 'udp' or 'tcp'")
+	address := flag.String("a", "127.0.0.1:514", "Address of the syslog server")
+	facility := flag.Int("f", 1, "Syslog facility level (0 to 23)")
+	severity := flag.Int("s", 6, "Syslog severity level (0 to 7)")
+	host := flag.String("h", "localhost", "Host name")
+	app := flag.String("n", "syslog_client", "Application name")
+	message := flag.String("m", "Test syslog message", "The message to send")
+	inputFile := flag.String("i", "", "Input file containing syslog messages")
+	debuglog := flag.String("d", "", "debug log file")
 
 	flag.Parse()
 
-	if *debuglog != "" {
+	if *debuglog == "stderr" {
+		log.SetOutput(os.Stderr)
+		log.SetFlags(0)
+	} else if *debuglog != "" {
 		f, err := os.OpenFile(*debuglog, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 		if err != nil {
 			log.Fatalf("Error opening debug log file: %v", err)
