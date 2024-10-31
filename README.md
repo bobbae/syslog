@@ -1,6 +1,7 @@
 # Syslog Server and Client
 
-This repository contains a syslog server and client program written Go.
+This repository contains a syslog server and a syslog client program written Go.
+
 The syslog server can accept syslog messages over UDP or TCP, and forward them to an upstream Syslog server. 
 It can store received messages in compressed rotating files and supports anomaly detection via OpenAI-compatible LLM
 which can be specified in environment variables: OPENAI_API_KEY, OPENAI_API_URL, and OPENAI_MODEL before running
