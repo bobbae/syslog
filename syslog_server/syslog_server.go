@@ -412,8 +412,24 @@ func parseSyslogMessage(msg string) (*syslogMsg, error) {
 
 func messagesHandler(handler *logFileHandler) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "text/html")
-		fmt.Fprint(w, renderMessageRows(handler))
+		if r.Method == http.MethodGet {
+			w.Header().Set("Content-Type", "text/html")
+			fmt.Fprint(w, renderMessageRows(handler))
+		} else if r.Method == http.MethodPost {
+			body, err := io.ReadAll(r.Body)
+			if err != nil {
+				http.Error(w, "Failed to read request body", http.StatusBadRequest)
+				return
+			}
+			defer r.Body.Close()
+
+			handler.logMessage(r.RemoteAddr, string(body))
+
+			w.Header().Set("Content-Type", "application/json")
+			json.NewEncoder(w).Encode(map[string]string{"status": "success", "message": "Syslog message received"})
+		} else {
+
+		}
 	}
 }
 
@@ -488,27 +504,6 @@ func checked(b bool) string {
 	return ""
 }
 
-func syslogHandler(handler *logFileHandler) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodPost {
-			http.Error(w, "Only POST method is allowed", http.StatusMethodNotAllowed)
-			return
-		}
-
-		// Read the body of the request.
-		body, err := io.ReadAll(r.Body)
-		if err != nil {
-			http.Error(w, "Failed to read request body", http.StatusBadRequest)
-			return
-		}
-		defer r.Body.Close()
-
-		handler.logMessage(r.RemoteAddr, string(body))
-
-		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]string{"status": "success", "message": "Syslog message received"})
-	}
-}
 
 func renderPage(w http.ResponseWriter, page string, tmpl *template.Template) {
 	w.Header().Set("Content-Type", "text/html")
@@ -571,7 +566,6 @@ func main() {
 	})
 	http.HandleFunc("/messages", messagesHandler(logHandler))
 	http.HandleFunc("/clear", clearHandler(logHandler))
-	http.HandleFunc("/syslog", syslogHandler(logHandler))
 	http.HandleFunc("/config", configHandler(logHandler))
 
 	go func() {
