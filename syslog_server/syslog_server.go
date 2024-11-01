@@ -41,18 +41,18 @@ type logFileHandler struct {
 }
 
 type Config struct {
-	anomaliesOnly  bool
-	messagepattern string
-	severity       int
-	appname        string
-	hostname       string
+	anomaliesOnly  bool   `json:"anomaliesOnly"`
+	messagepattern string `json:"messagepattern"`
+	severity       int    `json:"severity"`
+	appname        string `json:"appname"`
+	hostname       string `json:"hostname"`
 }
 
 type syslogMsg struct {
-	Timestamp string
-	Hostname  string
-	Appname   string
-	Message   string
+	Timestamp string `json:"timestamp"`
+	Hostname  string `json:"hostname"`
+	Appname   string `json:"appname"`
+	Message   string `json:"message"`
 }
 
 type CompletionRequest struct {
@@ -219,19 +219,19 @@ func isRegexp(str string) bool {
 	_, err := regexp.Compile(str)
 	return err == nil
 }
-func renderMessageRows(handler *logFileHandler) string {
+func renderMessageRows(handler *logFileHandler) (template.HTML, error) {
 	handler.mu.Lock()
 	defer handler.mu.Unlock()
 
 	config := handler.getConfig()
-
+	var messages []syslogMsg
 	if len(handler.messages) == 0 {
-		return "<tr><td colspan='5'>No messages yet.</td></tr>"
+		return template.HTML("<tr><td colspan='5'>No messages yet.</td></tr>"), nil
 	}
 	if config.anomaliesOnly {
 		apiKey := os.Getenv("OPENAI_API_KEY")
 		if apiKey == "" {
-			return "<tr><td colspan='5'>OpenAI API key not found. Please set the OPENAI_API_KEY environment variable and rerun the server.</td></tr>"
+			return template.HTML("<tr><td colspan='5'>OpenAI API key not found. Please set the OPENAI_API_KEY environment variable and rerun the server.</td></tr>"), nil
 		}
 
 		url := os.Getenv("OPENAI_API_URL")
@@ -244,12 +244,11 @@ func renderMessageRows(handler *logFileHandler) string {
 		}
 		anomalies, err := findAnomalies(LLMConfig{apiKey: apiKey, url: url, model: model}, handler.messages)
 		if err != nil {
-			return "<tr><td colspan='5'>Error analyzing syslog messages: " + err.Error() + "</td></tr>"
+			return template.HTML("<tr><td colspan='5'>Error analyzing syslog messages: " + err.Error() + "</td></tr>"), nil
 		}
 		handler.messages = anomalies
 	}
-	var result strings.Builder
-	for i, msg := range handler.messages {
+	for _, msg := range handler.messages {
 		syslogMsg, err := parseSyslogMessage(msg)
 		if err != nil {
 			log.Printf("Error parsing message: %v", err)
@@ -289,15 +288,20 @@ func renderMessageRows(handler *logFileHandler) string {
 		if msgSeverity > config.severity {
 			continue
 		}
-		result.WriteString("<tr>")
-		result.WriteString(fmt.Sprintf("<td>%d</td>", i+1))
-		result.WriteString(fmt.Sprintf("<td>%v</td>", syslogMsg.Timestamp))
-		result.WriteString(fmt.Sprintf("<td>%v</td>", syslogMsg.Hostname))
-		result.WriteString(fmt.Sprintf("<td>%v</td>", syslogMsg.Appname))
-		result.WriteString(fmt.Sprintf("<td>%v</td>", syslogMsg.Message))
-		result.WriteString("</tr>")
+		messages = append(messages, *syslogMsg)
 	}
-	return result.String()
+	tmpl, err := template.ParseFiles("templates/message_rows.html")
+	if err != nil {
+		return "", err
+	}
+	var tpl bytes.Buffer
+	err = tmpl.Execute(&tpl, struct {
+		Messages []syslogMsg
+	}{Messages: messages})
+	if err != nil {
+		return "", err
+	}
+	return template.HTML(tpl.String()), nil
 }
 func findAnomalies(config LLMConfig, messages []string) ([]string, error) {
 
@@ -418,7 +422,12 @@ func messagesHandler(handler *logFileHandler) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if r.Method == http.MethodGet {
 			w.Header().Set("Content-Type", "text/html")
-			fmt.Fprint(w, renderMessageRows(handler))
+			rows, err := renderMessageRows(handler)
+			if err != nil {
+				http.Error(w, "Error rendering message rows", http.StatusInternalServerError)
+				return
+			}
+			fmt.Fprint(w, rows)
 		} else if r.Method == http.MethodPost {
 			var reqBody MessageRequest
 			err := json.NewDecoder(r.Body).Decode(&reqBody)
@@ -455,25 +464,19 @@ func clearHandler(handler *logFileHandler) http.HandlerFunc {
 
 func configHandler(handler *logFileHandler) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		tmpl, err := template.ParseFiles("templates/config_form.html")
+		if err != nil {
+			http.Error(w, "Error parsing template", http.StatusInternalServerError)
+			return
+		}
 		if r.Method == http.MethodGet {
 			w.Header().Set("Content-Type", "text/html")
 			w.WriteHeader(http.StatusOK)
-			fmt.Fprintf(w, `
-				<label for="anomaliesOnly">Anomalies Only:</label>
-				<input type="checkbox" id="anomaliesOnly" name="anomaliesOnly" %s><br><br>
-				<label for="messagepattern">Message Pattern:</label>
-				<input type="text" id="messagepattern" name="messagepattern" value="%s" ><br><br>
-				<label for="severity">Severity (0-7):</label>
-				<input type="number" id="severity" name="severity" min="0" max="7" value="%d"><br><br>
-				<label for="appname">App Name:</label>
-				<input type="text" id="appname" name="appname" value="%s"><br><br>
-				<label for="hostname">Host Name:</label>
-				<input type="text" id="hostname" name="hostname" value="%s"><br><br>`,
-				checked(handler.config.anomaliesOnly),
-				handler.config.messagepattern, handler.config.severity,
-				handler.config.appname, handler.config.hostname,
-			)
-
+			err := tmpl.Execute(w, handler.getConfig())
+			if err != nil {
+				http.Error(w, "Error executing template", http.StatusInternalServerError)
+				return
+			}
 			return
 		}
 		if r.Method != http.MethodPost {

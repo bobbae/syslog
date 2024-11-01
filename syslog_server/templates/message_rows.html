@@ -1,0 +1,13 @@
+{{if len .Messages}}
+    {{range $index, $element := .Messages}}
+        <tr>
+            <td>{{$index + 1}}</td>
+            <td>{{$element.Timestamp}}</td>
+            <td>{{$element.Hostname}}</td>
+            <td>{{$element.Appname}}</td>
+            <td>{{$element.Message}}</td>
+        </tr>
+    {{end}}
+{{else}}
+    <tr><td colspan="5">No messages yet.</td></tr>
+{{end}}
