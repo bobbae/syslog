@@ -410,25 +410,32 @@ func parseSyslogMessage(msg string) (*syslogMsg, error) {
 	}, nil
 }
 
+type MessageRequest struct {
+	Messages []string `json:"messages"`
+}
+
 func messagesHandler(handler *logFileHandler) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if r.Method == http.MethodGet {
 			w.Header().Set("Content-Type", "text/html")
 			fmt.Fprint(w, renderMessageRows(handler))
 		} else if r.Method == http.MethodPost {
-			body, err := io.ReadAll(r.Body)
+			var reqBody MessageRequest
+			err := json.NewDecoder(r.Body).Decode(&reqBody)
 			if err != nil {
-				http.Error(w, "Failed to read request body", http.StatusBadRequest)
+				http.Error(w, "Invalid request body", http.StatusBadRequest)
 				return
 			}
 			defer r.Body.Close()
 
-			handler.logMessage(r.RemoteAddr, string(body))
-
+			for _, msg := range reqBody.Messages {
+				handler.logMessage(r.RemoteAddr, msg)
+			}
 			w.Header().Set("Content-Type", "application/json")
-			json.NewEncoder(w).Encode(map[string]string{"status": "success", "message": "Syslog message received"})
+			json.NewEncoder(w).Encode(map[string]string{"status": "success", "message": "Syslog messages received"})
 		} else {
-
+			http.Error(w, "Only GET and POST methods are allowed", http.StatusMethodNotAllowed)
+			return
 		}
 	}
 }
