@@ -1,0 +1,24 @@
+<form id="configForm">
+    <h3>Server side filters</h3>
+    <label for="anomaliesOnly">Anomalies Only:</label>
+    <input type="checkbox" id="anomaliesOnly" name="anomaliesOnly" {{if .Config.anomaliesOnly}}checked{{end}}><br><br>
+
+    <label for="messagepattern">Message Pattern:</label>
+    <input type="text" id="messagepattern" name="messagepattern" value="{{.Config.messagepattern}}"><br><br>
+
+    <label for="severity">Severity (0-7):</label>
+    <input type="number" id="severity" name="severity" min="0" max="7" value="{{.Config.severity}}"><br><br>
+
+    <label for="appname">App Name:</label>
+    <input type="text" id="appname" name="appname" value="{{.Config.appname}}"><br><br>
+
+    <label for="hostname">Host Name:</label>
+    <input type="text" id="hostname" name="hostname" value="{{.Config.hostname}}"><br><br>
+
+    <div class="grid">
+        <button hx-post="/config" hx-swap="innerHTML" hx-target="#configResponse">
+            Submit
+        </button>
+        <div></div>
+    </div>
+</form>
