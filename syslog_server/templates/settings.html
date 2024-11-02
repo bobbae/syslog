@@ -18,14 +18,17 @@
                             {{template "config_form" .}}
                         </div>
                         <div class="grid">
-                            <button hx-post="/config" hx-swap="none" >
+                            <button hx-post="/config" hx-swap="none" hx-target="#configResponse" hx-indicator="#spinner" id="submit-button">
                                 Submit
                             </button>
-                            <div></div>
+                            <div id="spinner" style="display: none;">
+                                <span class="spinner"></span>
+                            </div>
+                            <div id="configResponse"></div>    
                         </div>
                     </form>
                 </div>
-                <div id="configResponse"></div>    
+                
             </div>
         </container>
     </main>
@@ -33,5 +36,15 @@
     <footer>
         {{template "footer" .}}
     </footer>
+    <script>
+        document.getElementById('submit-button').addEventListener('click', function(event) {
+            document.getElementById('spinner').style.display = 'block';
+            document.getElementById('submit-button').disabled = true;
+        });
+        document.getElementById('configResponse').addEventListener('htmx:afterSwap', function(event) {
+            document.getElementById('spinner').style.display = 'none';
+            document.getElementById('submit-button').disabled = false;
+        });
+    </script>
 </body>
 </html>
