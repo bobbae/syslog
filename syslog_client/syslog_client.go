@@ -26,10 +26,7 @@ func main() {
 
 	flag.Parse()
 
-	if *debuglog == "stderr" {
-		log.SetOutput(os.Stderr)
-		log.SetFlags(0)
-	} else if *debuglog != "" {
+	if *debuglog != "" {
 		f, err := os.OpenFile(*debuglog, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 		if err != nil {
 			log.Fatalf("Error opening debug log file: %v", err)
@@ -37,8 +34,8 @@ func main() {
 		log.SetOutput(f)
 		log.SetFlags(log.LstdFlags | log.Lshortfile)
 	} else {
-		log.SetFlags(0)
 		log.SetOutput(io.Discard)
+		log.SetFlags(0)
 	}
 
 	// Validate priority level
@@ -169,7 +166,6 @@ func parseSyslogLine(line string, facility int) string {
 
 	return fmt.Sprintf("<%d>%s %s %s: %s", priority, date, host, app, message)
 }
-
 
 // parseSeverity converts severity string to integer.
 func parseSeverity(severityStr string) int {

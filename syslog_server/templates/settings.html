@@ -11,8 +11,19 @@
     <main class="container">
         <container id="main">
             <div class="grid">
-                <div id="configFields" hx-get="/config" hx-swap="innerHTML" hx-trigger="load">
-                    <!-- config_form.html will be loaded here -->
+                <div>
+                    <form >
+                        <h3>Settings   </h3>
+                        <div id="configFields"  >
+                            {{template "config_form" .}}
+                        </div>
+                        <div class="grid">
+                            <button hx-post="/config" hx-swap="none" >
+                                Submit
+                            </button>
+                            <div></div>
+                        </div>
+                    </form>
                 </div>
                 <div id="configResponse"></div>    
             </div>
@@ -24,4 +35,3 @@
     </footer>
 </body>
 </html>
-

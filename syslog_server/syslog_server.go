@@ -41,11 +41,11 @@ type logFileHandler struct {
 }
 
 type Config struct {
-	anomaliesOnly  bool   `json:"anomaliesOnly"`
-	messagepattern string `json:"messagepattern"`
-	severity       int    `json:"severity"`
-	appname        string `json:"appname"`
-	hostname       string `json:"hostname"`
+	AnomaliesOnly  bool   `json:"anomaliesOnly"`
+	MessagePattern string `json:"messagepattern"`
+	Severity       int    `json:"severity"`
+	AppName        string `json:"appname"`
+	HostName       string `json:"hostname"`
 }
 
 type syslogMsg struct {
@@ -91,7 +91,7 @@ func createLogFileHandler(filename string, maxSize int, forwardAddr,
 		disableLogging:    false,
 		disableForwarding: false,
 		messages:          []string{},
-		config:            &Config{severity: 7, appname: "", messagepattern: ""},
+		config:            &Config{Severity: 7, AppName: "", MessagePattern: ""},
 	}
 	if filename == "" {
 		handler.disableLogging = true
@@ -219,6 +219,7 @@ func isRegexp(str string) bool {
 	_, err := regexp.Compile(str)
 	return err == nil
 }
+
 func renderMessageRows(handler *logFileHandler) (template.HTML, error) {
 	handler.mu.Lock()
 	defer handler.mu.Unlock()
@@ -228,7 +229,7 @@ func renderMessageRows(handler *logFileHandler) (template.HTML, error) {
 	if len(handler.messages) == 0 {
 		return template.HTML("<tr><td colspan='5'>No messages yet.</td></tr>"), nil
 	}
-	if config.anomaliesOnly {
+	if config.AnomaliesOnly {
 		apiKey := os.Getenv("OPENAI_API_KEY")
 		if apiKey == "" {
 			return template.HTML("<tr><td colspan='5'>OpenAI API key not found. Please set the OPENAI_API_KEY environment variable and rerun the server.</td></tr>"), nil
@@ -256,16 +257,16 @@ func renderMessageRows(handler *logFileHandler) (template.HTML, error) {
 		}
 
 		// Apply filtering based on configuration
-		if config.appname != "" && !strings.Contains(syslogMsg.Appname, config.appname) {
+		if config.AppName != "" && !strings.Contains(syslogMsg.Appname, config.AppName) {
 			continue
 		}
-		if config.hostname != "" && !strings.Contains(syslogMsg.Hostname, config.hostname) {
+		if config.HostName != "" && !strings.Contains(syslogMsg.Hostname, config.HostName) {
 			continue
 		}
-		if config.messagepattern != "" {
-			if isRegexp(config.messagepattern) {
-				if config.messagepattern != "" {
-					matched, err := regexp.MatchString(config.messagepattern, syslogMsg.Message)
+		if config.MessagePattern != "" {
+			if isRegexp(config.MessagePattern) {
+				if config.MessagePattern != "" {
+					matched, err := regexp.MatchString(config.MessagePattern, syslogMsg.Message)
 					if err != nil {
 						log.Printf("Error matching regex: %v", err)
 						continue
@@ -275,7 +276,7 @@ func renderMessageRows(handler *logFileHandler) (template.HTML, error) {
 					}
 				}
 			} else {
-				if !strings.Contains(syslogMsg.Message, config.messagepattern) {
+				if !strings.Contains(syslogMsg.Message, config.MessagePattern) {
 					continue
 				}
 			}
@@ -285,7 +286,7 @@ func renderMessageRows(handler *logFileHandler) (template.HTML, error) {
 			log.Printf("Error parsing priority: %v", err)
 			continue
 		}
-		if msgSeverity > config.severity {
+		if msgSeverity > config.Severity {
 			continue
 		}
 		messages = append(messages, *syslogMsg)
@@ -294,6 +295,7 @@ func renderMessageRows(handler *logFileHandler) (template.HTML, error) {
 	if err != nil {
 		return "", err
 	}
+
 	var tpl bytes.Buffer
 	err = tmpl.Execute(&tpl, struct {
 		Messages []syslogMsg
@@ -303,16 +305,15 @@ func renderMessageRows(handler *logFileHandler) (template.HTML, error) {
 	}
 	return template.HTML(tpl.String()), nil
 }
+
 func findAnomalies(config LLMConfig, messages []string) ([]string, error) {
 
 	requestBody := CompletionRequest{
 		Model: config.model,
 		Messages: []Message{
 			{
-				Role: "user",
-				Content: `	Given a list of syslog messages, respond only with lines of text
-							that start with ANOMALIES: and followed by lines of anomalous syslog messages.
-							Syslog messages:\n` + strings.Join(messages, "\n "),
+				Role:    "user",
+				Content: `Given a list of syslog messages, respond only with lines of text that start with ANOMALIES: and followed by lines of anomalous syslog messages. Syslog messages:\n` + strings.Join(messages, "\n "),
 			},
 		},
 	}
@@ -464,23 +465,14 @@ func clearHandler(handler *logFileHandler) http.HandlerFunc {
 
 func configHandler(handler *logFileHandler) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		tmpl, err := template.ParseFiles("templates/config_form.html")
-		if err != nil {
-			http.Error(w, "Error parsing template", http.StatusInternalServerError)
-			return
-		}
+		
 		if r.Method == http.MethodGet {
-			w.Header().Set("Content-Type", "text/html")
 			w.WriteHeader(http.StatusOK)
-			err := tmpl.Execute(w, handler.getConfig())
-			if err != nil {
-				http.Error(w, "Error executing template", http.StatusInternalServerError)
-				return
-			}
+			
 			return
 		}
 		if r.Method != http.MethodPost {
-			http.Error(w, "Only POST method is allowed", http.StatusMethodNotAllowed)
+			http.Error(w, "Only GET or POST method is allowed", http.StatusMethodNotAllowed)
 			return
 		}
 		err := r.ParseForm()
@@ -494,32 +486,27 @@ func configHandler(handler *logFileHandler) http.HandlerFunc {
 		defer r.Body.Close()
 
 		config := Config{
-			anomaliesOnly:  anomaliesOnly,
-			appname:        r.FormValue("appname"),
-			hostname:       r.FormValue("hostname"),
-			messagepattern: r.FormValue("messagepattern"),
-			severity:       severity,
+			AnomaliesOnly:  anomaliesOnly,
+			AppName:        r.FormValue("appname"),
+			HostName:       r.FormValue("hostname"),
+			MessagePattern: r.FormValue("messagepattern"),
+			Severity:       severity,
 		}
 
 		handler.updateConfig(&config)
-		w.Header().Set("Content-Type", "text/html")
 		w.WriteHeader(http.StatusOK)
+		
 	}
 }
 
-func checked(b bool) string {
-	if b {
-		return "checked"
-	}
-	return ""
-}
-
-
-func renderPage(w http.ResponseWriter, page string, tmpl *template.Template) {
+func renderPage(w http.ResponseWriter, page string, tmpl *template.Template,
+	handler *logFileHandler) {
 	w.Header().Set("Content-Type", "text/html")
-	err := tmpl.ExecuteTemplate(w, page+".html", nil)
+	config := handler.getConfig()
+
+	err := tmpl.ExecuteTemplate(w, page+".html", config)
 	if err != nil {
-		log.Printf("render template error %s %v", page, err)
+		fmt.Printf("render template error %s %v\n", page, err)
 		http.Error(w, "render template error", http.StatusInternalServerError)
 	}
 }
@@ -535,10 +522,7 @@ func main() {
 	debuglog := flag.String("d", "", "debug log file")
 	flag.Parse()
 
-	if *debuglog == "stderr" {
-		log.SetOutput(os.Stderr)
-		log.SetFlags(0)
-	} else if *debuglog != "" {
+	if *debuglog != "" {
 		f, err := os.OpenFile(*debuglog, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 		if err != nil {
 			log.Fatalf("Error opening debug log file: %v", err)
@@ -546,8 +530,8 @@ func main() {
 		log.SetOutput(f)
 		log.SetFlags(log.LstdFlags | log.Lshortfile)
 	} else {
-		log.SetFlags(0)
 		log.SetOutput(io.Discard)
+		log.SetFlags(0)
 	}
 
 	logHandler, err := createLogFileHandler(*logFile, *maxSize, *forwardAddr, *forwardProto,
@@ -566,13 +550,13 @@ func main() {
 		log.Fatalf("Failed to parse template: %v", err)
 	}
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		renderPage(w, "logs", tmpl)
+		renderPage(w, "logs", tmpl, logHandler)
 	})
 	http.HandleFunc("/logs", func(w http.ResponseWriter, r *http.Request) {
-		renderPage(w, "logs", tmpl)
+		renderPage(w, "logs", tmpl, logHandler)
 	})
 	http.HandleFunc("/settings", func(w http.ResponseWriter, r *http.Request) {
-		renderPage(w, "settings", tmpl)
+		renderPage(w, "settings", tmpl, logHandler)
 	})
 	http.HandleFunc("/messages", messagesHandler(logHandler))
 	http.HandleFunc("/clear", clearHandler(logHandler))

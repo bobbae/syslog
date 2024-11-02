@@ -1,7 +1,7 @@
 {{if len .Messages}}
     {{range $index, $element := .Messages}}
         <tr>
-            <td>{{$index + 1}}</td>
+            <td>{{$index}}</td>
             <td>{{$element.Timestamp}}</td>
             <td>{{$element.Hostname}}</td>
             <td>{{$element.Appname}}</td>
