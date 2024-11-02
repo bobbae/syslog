@@ -13,14 +13,20 @@
             <div class="grid">
                 <div>
                     <form >
-                        <h3>Settings   </h3>
-                        <div id="configFields"  >
-                            {{template "config_form" .}}
+                        
+                        <div id="configFields" class="grid" >
+                            <div>   
+                                {{template "config_form" .}}
+                            </div>
+                            <div>
+                            </div>
                         </div>
                         <div class="grid">
-                            <button hx-post="/config" hx-swap="none" hx-target="#configResponse" hx-indicator="#spinner" id="submit-button">
-                                Submit
-                            </button>
+                            <div>
+                                <button hx-post="/config" hx-swap="none" hx-target="#configResponse" hx-indicator="#spinner" id="submit-button">
+                                    Submit
+                                </button>
+                            </div>
                             <div id="spinner" style="display: none;">
                                 <span class="spinner"></span>
                             </div>
