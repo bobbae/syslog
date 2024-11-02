@@ -1,12 +1,12 @@
 {{define "config_form"}}
-<label for="anomaliesOnly" >Anomalies Only:</label>
-<input type="checkbox" id="anomaliesOnly" name="anomaliesOnly" {{if .AnomaliesOnly}}checked{{end}} ></input>
-<label for="messagepattern" ">Message Pattern:</label>
-<input type="text" id="messagepattern" name="messagepattern" value="{{.MessagePattern}}" "></input>
-<label for="severity" ">Severity (0-7):</label>
-<input type="number" id="severity" name="severity" min="0" max="7" value="{{.Severity}}""></input>
-<label for="appname" ">App Name:</label>
-<input type="text" id="appname" name="appname" value="{{.AppName}}""></input>
-<label for="hostname" ">Host Name:</label>
-<input type="text" id="hostname" name="hostname" value="{{.HostName}}" "></input>
+<label for="anomaliesOnly">Anomalies Only:</label>
+<input type="checkbox" id="anomaliesOnly" name="anomaliesOnly" {{if .AnomaliesOnly}}checked{{end}}>
+<label for="messagepattern">Message Pattern:</label>
+<input type="text" id="messagepattern" name="messagepattern" value="{{.MessagePattern}}">
+<label for="severity">Severity (0-7):</label>
+<input type="number" id="severity" name="severity" min="0" max="7" value="{{.Severity}}">
+<label for="appname">App Name:</label>
+<input type="text" id="appname" name="appname" value="{{.AppName}}">
+<label for="hostname">Host Name:</label>
+<input type="text" id="hostname" name="hostname" value="{{.HostName}}">
 {{end}}
