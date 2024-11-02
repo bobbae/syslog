@@ -68,7 +68,7 @@ func main() {
 
 // formatSyslogMessage creates a syslog message with priority, timestamp, and message body.
 func formatSyslogMessage(priority int, host string, app string, message string) string {
-	timestamp := time.Now().Format(time.RFC3339)
+	timestamp := time.Now().Format("Jan 2 15:04:05")
 	return fmt.Sprintf("<%d>%s %s %s", priority, timestamp, host, app+": "+message)
 }
 

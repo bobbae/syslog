@@ -41,11 +41,17 @@ type logFileHandler struct {
 }
 
 type Config struct {
+	MaxMessages int `json:"maxMessages"`
+	DisableLog  bool `json:"disableLog"`
 	AnomaliesOnly  bool   `json:"anomaliesOnly"`
 	MessagePattern string `json:"messagepattern"`
 	Severity       int    `json:"severity"`
 	AppName        string `json:"appname"`
 	HostName       string `json:"hostname"`
+	ApiKey         string `json:"apiKey"`
+	Url            string `json:"url"`
+	Model          string `json:"model"`
+	LogFile string `json:"logfile"`
 }
 
 type syslogMsg struct {
@@ -91,7 +97,7 @@ func createLogFileHandler(filename string, maxSize int, forwardAddr,
 		disableLogging:    false,
 		disableForwarding: false,
 		messages:          []string{},
-		config:            &Config{Severity: 7, AppName: "", MessagePattern: ""},
+		config:            &Config{MaxMessages: 1000, DisableLog: false, AnomaliesOnly: false, Severity: 7, AppName: "", MessagePattern: ""},
 	}
 	if filename == "" {
 		handler.disableLogging = true
@@ -158,6 +164,9 @@ func (lh *logFileHandler) logMessage(remoteAddr, message string) {
 
 	// Store message for web interface
 	lh.messages = append(lh.messages, message)
+	if len(lh.messages) >= lh.config.MaxMessages && lh.config.MaxMessages > 0 {
+		lh.messages = lh.messages[len(lh.messages) - lh.config.MaxMessages:]
+	}
 
 	if lh.forwardAddr != "" && !lh.disableForwarding {
 		_, severity, err := parsePriority(message)
@@ -197,16 +206,14 @@ func (lh *logFileHandler) forwardMessage(message string) {
 	}
 }
 
-func (lh *logFileHandler) clearMessages() {
-	lh.mu.Lock()
-	defer lh.mu.Unlock()
-	lh.messages = []string{}
-}
 
 func (lh *logFileHandler) updateConfig(config *Config) {
 	lh.muConfig.Lock()
 	defer lh.muConfig.Unlock()
 	lh.config = config
+	if len(lh.messages) >= lh.config.MaxMessages && lh.config.MaxMessages > 0 {
+		lh.messages = lh.messages[len(lh.messages) - lh.config.MaxMessages:]
+	}
 }
 
 func (lh *logFileHandler) getConfig() *Config {
@@ -230,16 +237,16 @@ func renderMessageRows(handler *logFileHandler) (template.HTML, error) {
 		return template.HTML("<tr><td colspan='5'>No messages yet.</td></tr>"), nil
 	}
 	if config.AnomaliesOnly {
-		apiKey := os.Getenv("OPENAI_API_KEY")
-		if apiKey == "" {
+		
+		if handler.config.ApiKey == "" {
 			return template.HTML("<tr><td colspan='5'>OpenAI API key not found. Please set the OPENAI_API_KEY environment variable and rerun the server.</td></tr>"), nil
 		}
-
-		url := os.Getenv("OPENAI_API_URL")
+		apiKey := handler.config.ApiKey
+		url := handler.config.Url
+		model := handler.config.Model
 		if url == "" {
 			url = "https://api.openai.com/v1/chat/completions"
 		}
-		model := os.Getenv("OPENAI_MODEL")
 		if model == "" {
 			model = "gpt-3.5-turbo"
 		}
@@ -450,19 +457,6 @@ func messagesHandler(handler *logFileHandler) http.HandlerFunc {
 	}
 }
 
-func clearHandler(handler *logFileHandler) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodPost {
-			http.Error(w, "Only POST method is allowed", http.StatusMethodNotAllowed)
-			return
-		}
-
-		handler.clearMessages()
-		w.Header().Set("Content-Type", "text/html")
-		fmt.Fprintln(w, "<tr><td colspan='5'>No messages yet.</td></tr>")
-	}
-}
-
 func configHandler(handler *logFileHandler) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		
@@ -482,11 +476,12 @@ func configHandler(handler *logFileHandler) http.HandlerFunc {
 		}
 		severity, _ := strconv.Atoi(r.FormValue("severity"))
 		anomaliesOnly := r.FormValue("anomaliesOnly") == "on" // Parse anomaliesOnly checkbox
-
+		maxMessages, _ := strconv.Atoi(r.FormValue("maxMessages"))
 		defer r.Body.Close()
 
 		config := Config{
 			AnomaliesOnly:  anomaliesOnly,
+			MaxMessages: maxMessages,
 			AppName:        r.FormValue("appname"),
 			HostName:       r.FormValue("hostname"),
 			MessagePattern: r.FormValue("messagepattern"),
@@ -533,12 +528,16 @@ func main() {
 		log.SetOutput(io.Discard)
 		log.SetFlags(0)
 	}
-
+	
 	logHandler, err := createLogFileHandler(*logFile, *maxSize, *forwardAddr, *forwardProto,
 		*forwardLevel)
 	if err != nil {
 		log.Fatalf("Failed to create log handler: %v", err)
 	}
+	logHandler.config.ApiKey = os.Getenv("OPENAI_API_KEY")
+	logHandler.config.Url = os.Getenv("OPENAI_API_URL")
+	logHandler.config.Model = os.Getenv("OPENAI_MODEL")
+	logHandler.config.LogFile = *logFile
 
 	http.HandleFunc("/static/search.js", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/javascript")
@@ -559,7 +558,6 @@ func main() {
 		renderPage(w, "settings", tmpl, logHandler)
 	})
 	http.HandleFunc("/messages", messagesHandler(logHandler))
-	http.HandleFunc("/clear", clearHandler(logHandler))
 	http.HandleFunc("/config", configHandler(logHandler))
 
 	go func() {
