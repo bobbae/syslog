@@ -1,32 +1,32 @@
 {{define "config_form"}}
 <div class="grid">
     <div class="col-4">
-        <label for="anomaliesOnly">Anomalies Only:</label>
-        <input type="checkbox" id="anomaliesOnly" name="anomaliesOnly" {{if .AnomaliesOnly}}checked{{end}}>
+        <label for="anomaliesOnly" style="display: inline-block; width: 150px;">Anomalies Only:</label>
+        <input type="checkbox" id="anomaliesOnly" name="anomaliesOnly" {{if .AnomaliesOnly}}checked{{end}} style="vertical-align: middle;">
     </div>
 </div>
 <div class="grid">
     <div class="col-4">
-        <label for="messagepattern">Message Pattern:</label>
-        <input type="text" id="messagepattern" name="messagepattern" value="{{.MessagePattern}}">
+        <label for="messagepattern" style="display: inline-block; width: 150px;">Message Pattern:</label>
+        <input type="text" id="messagepattern" name="messagepattern" value="{{.MessagePattern}}" style="vertical-align: middle;">
     </div>
 </div>
 <div class="grid">
     <div class="col-4">
-        <label for="severity">Severity (0-7):</label>
-        <input type="number" id="severity" name="severity" min="0" max="7" value="{{.Severity}}">
+        <label for="severity" style="display: inline-block; width: 150px;">Severity (0-7):</label>
+        <input type="number" id="severity" name="severity" min="0" max="7" value="{{.Severity}}" style="vertical-align: middle;">
     </div>
 </div>
 <div class="grid">
     <div class="col-4">
-        <label for="appname">App Name:</label>
-        <input type="text" id="appname" name="appname" value="{{.AppName}}">
+        <label for="appname" style="display: inline-block; width: 150px;">App Name:</label>
+        <input type="text" id="appname" name="appname" value="{{.AppName}}" style="vertical-align: middle;">
     </div>
 </div>
 <div class="grid">
     <div class="col-4">
-        <label for="hostname">Host Name:</label>
-        <input type="text" id="hostname" name="hostname" value="{{.HostName}}">
+        <label for="hostname" style="display: inline-block; width: 150px;">Host Name:</label>
+        <input type="text" id="hostname" name="hostname" value="{{.HostName}}" style="vertical-align: middle;">
     </div>
 </div>
 {{end}}
