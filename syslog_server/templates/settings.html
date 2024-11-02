@@ -42,8 +42,10 @@
             document.getElementById('submit-button').disabled = true;
         });
         document.getElementById('configResponse').addEventListener('htmx:afterSwap', function(event) {
-            document.getElementById('spinner').style.display = 'none';
-            document.getElementById('submit-button').disabled = false;
+            setTimeout(function() {
+                document.getElementById('spinner').style.display = 'none';
+                document.getElementById('submit-button').disabled = false;
+            }, 1000); // 1-second delay
         });
     </script>
 </body>
