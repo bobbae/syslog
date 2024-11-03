@@ -83,12 +83,12 @@ func findAnomalies(config LLMConfig, messages []string) ([]string, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to read response: %w", err)
 	}
-	
 	var completionResponse CompletionResponse
 	if err := json.Unmarshal(body, &completionResponse); err != nil {
 		fmt.Println("Error unmarshalling JSON:", err)
 		return nil, fmt.Errorf("failed to unmarshal response: %w", err)
 	}
+	
 	anomalyReport := "ANOMALIES:"
 	anomalies := []string{}
 	for _, choice := range completionResponse.Choices {
@@ -104,14 +104,25 @@ func findAnomalies(config LLMConfig, messages []string) ([]string, error) {
 }
 
 func main() {
-	apiKeyPtr := flag.String("k", "", "API key")
 	inputFilePtr := flag.String("i", "", "Path to the syslog file")
-	urlPtr := flag.String("u", "https://api.openai.com/v1/chat/completions", "API endpoint URL")
-	modelPtr := flag.String("m", "gpt-3.5-turbo", "model name")
+	
 	flag.Parse()
 
+	apiKey := os.Getenv("OPENAI_API_KEY")
+	url := os.Getenv("OPENAI_API_URL")
+	model := os.Getenv("OPENAI_MODEL")
+	
+	if apiKey == "" {
+		log.Fatal("Please provide an API key using env var OPENAI_API_KEY")
+	}
+	if url == "" {
+		url = "https://api.openai.com/v1/chat/completions"
+	}
+	if model == "" {
+		model = "gpt-3.5-turbo"
+	}
 	if *inputFilePtr == "" {
-		log.Fatal("Please provide an input file using the -inputfile flag.")
+		log.Fatal("Please provide an input file using the -i flag.")
 	}
 
 	fileContent, err := os.ReadFile(*inputFilePtr)
@@ -121,7 +132,7 @@ func main() {
 
 	messages := strings.Split(string(fileContent), "\n")
 	messages = removeEmptyStrings(messages)
-	config := LLMConfig{apiKey: *apiKeyPtr, url: *urlPtr, model: *modelPtr}
+	config := LLMConfig{apiKey: apiKey, url: url, model: model}
 	anomalies, err := findAnomalies(config, messages)
 	if err != nil {
 		log.Fatalf("Error analyzing syslog messages: %v", err)

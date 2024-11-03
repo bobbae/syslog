@@ -35,8 +35,9 @@ type logFileHandler struct {
 	mu                sync.Mutex
 	disableLogging    bool
 	disableForwarding bool
-	messages          []string // Added to store messages for web interface
-	config            *Config  // Added to store configuration
+	messages          []string
+	anomalies         []string
+	config            *Config  
 	muConfig          sync.Mutex
 }
 
@@ -239,10 +240,8 @@ func renderMessageRows(handler *logFileHandler) (template.HTML, error) {
 
 	config := handler.getConfig()
 	var messages []syslogMsg
-	if len(handler.messages) == 0 {
-		return template.HTML("<tr><td colspan='5'>No messages yet.</td></tr>"), nil
-	}
-	if config.AnomaliesOnly {
+	
+	if config.AnomaliesOnly && len(handler.messages) > 0 {
 		if config.ApiKey == "" {
 			return template.HTML("<tr><td colspan='5'>OpenAI API key not found. Please set the OPENAI_API_KEY environment variable and rerun the server.</td></tr>"), nil
 		}
@@ -259,9 +258,20 @@ func renderMessageRows(handler *logFileHandler) (template.HTML, error) {
 		if err != nil {
 			return template.HTML("<tr><td colspan='5'>Error analyzing syslog messages: " + err.Error() + "</td></tr>"), nil
 		}
-		handler.messages = anomalies
+		handler.anomalies = append(handler.anomalies, anomalies...)
+		handler.messages = []string{}
+	} 
+
+	var messagesToRender []string
+	if config.AnomaliesOnly   {
+		messagesToRender = handler.anomalies
+	} else {
+		messagesToRender = handler.messages
+	}	
+	if len(messagesToRender) == 0 {
+		return template.HTML("<tr><td colspan='5'>No messages yet.</td></tr>"), nil
 	}
-	for _, msg := range handler.messages {
+	for _, msg := range messagesToRender {
 		syslogMsg, err := parseSyslogMessage(msg)
 		if err != nil {
 			log.Printf("Error parsing message: %v", err)
@@ -319,13 +329,14 @@ func renderMessageRows(handler *logFileHandler) (template.HTML, error) {
 }
 
 func findAnomalies(config LLMConfig, messages []string) ([]string, error) {
-
 	requestBody := CompletionRequest{
 		Model: config.model,
 		Messages: []Message{
 			{
 				Role:    "user",
-				Content: `Given a list of syslog messages, respond only with lines of text that start with ANOMALIES: and followed by lines of anomalous syslog messages. Syslog messages:\n` + strings.Join(messages, "\n "),
+				Content: `Given a list of syslog messages, respond only with lines of text 
+					that start with ANOMALIES: and followed by lines of anomalous syslog messages. 
+					Syslog messages:\n` + strings.Join(messages, "\n "),
 			},
 		},
 	}
@@ -336,17 +347,14 @@ func findAnomalies(config LLMConfig, messages []string) ([]string, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal request: %w", err)
 	}
-
 	req, err := http.NewRequest("POST", url, bytes.NewBuffer(jsonData))
 	if err != nil {
 		return nil, fmt.Errorf("failed to create request: %w", err)
 	}
-
 	if apiKey != "" {
 		req.Header.Set("Authorization", "Bearer "+apiKey)
 	}
 	req.Header.Set("Content-Type", "application/json")
-
 	client := &http.Client{}
 	resp, err := client.Do(req)
 	if err != nil {
