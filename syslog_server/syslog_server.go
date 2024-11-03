@@ -237,13 +237,12 @@ func renderMessageRows(handler *logFileHandler) (template.HTML, error) {
 		return template.HTML("<tr><td colspan='5'>No messages yet.</td></tr>"), nil
 	}
 	if config.AnomaliesOnly {
-		
-		if handler.config.ApiKey == "" {
+		if config.ApiKey == "" {
 			return template.HTML("<tr><td colspan='5'>OpenAI API key not found. Please set the OPENAI_API_KEY environment variable and rerun the server.</td></tr>"), nil
 		}
-		apiKey := handler.config.ApiKey
-		url := handler.config.Url
-		model := handler.config.Model
+		apiKey := config.ApiKey
+		url := config.Url
+		model := config.Model
 		if url == "" {
 			url = "https://api.openai.com/v1/chat/completions"
 		}
@@ -459,7 +458,6 @@ func messagesHandler(handler *logFileHandler) http.HandlerFunc {
 
 func configHandler(handler *logFileHandler) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		
 		if r.Method == http.MethodGet {
 			w.WriteHeader(http.StatusOK)
 			
@@ -478,19 +476,15 @@ func configHandler(handler *logFileHandler) http.HandlerFunc {
 		anomaliesOnly := r.FormValue("anomaliesOnly") == "on" // Parse anomaliesOnly checkbox
 		maxMessages, _ := strconv.Atoi(r.FormValue("maxMessages"))
 		defer r.Body.Close()
-
-		config := Config{
-			AnomaliesOnly:  anomaliesOnly,
-			MaxMessages: maxMessages,
-			AppName:        r.FormValue("appname"),
-			HostName:       r.FormValue("hostname"),
-			MessagePattern: r.FormValue("messagepattern"),
-			Severity:       severity,
-		}
-
-		handler.updateConfig(&config)
+		config := handler.getConfig()
+		config.AnomaliesOnly = anomaliesOnly
+		config.MaxMessages = maxMessages
+		config.AppName = r.FormValue("appname")
+		config.HostName = r.FormValue("hostname")
+		config.MessagePattern = r.FormValue("messagepattern")
+		config.Severity = severity
+		handler.updateConfig(config)
 		w.WriteHeader(http.StatusOK)
-		
 	}
 }
 
@@ -538,7 +532,6 @@ func main() {
 	logHandler.config.Url = os.Getenv("OPENAI_API_URL")
 	logHandler.config.Model = os.Getenv("OPENAI_MODEL")
 	logHandler.config.LogFile = *logFile
-
 	http.HandleFunc("/static/search.js", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/javascript")
 		http.ServeFile(w, r, "static/search.js")

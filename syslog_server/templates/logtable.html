@@ -1,9 +1,7 @@
 {{ define "logtable" }}
 <div class="container">
     <article>
-    <div class="grid">
         <input type="text" id="search-input" placeholder="Search messages..." onkeyup="searchTable()">
-    </div>
     </article>
     <article>
         <table id="syslog-table" hx-get="/messages" hx-target="#syslog-tbody" hx-trigger="load, every 5s" hx-indicator="#spinner" hx-swap="innerHTML">
