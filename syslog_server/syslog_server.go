@@ -150,12 +150,18 @@ func parsePriority(buf string) (int, int, error) {
 	return facility, severity, nil
 }
 
-func (lh *logFileHandler) logMessage(remoteAddr, message string) {
+func skipNumericPrefix(line string) string {
+	re := regexp.MustCompile(`^<\d+>\s*`) // Matches "<digits>" at the beginning of the string, allowing for optional spaces after
+	return re.ReplaceAllString(line, "")
+}
+
+
+func (lh *logFileHandler) logMessage( message string) {
 	lh.mu.Lock()
 	defer lh.mu.Unlock()
 
 	if !lh.disableLogging {
-		logEntry := fmt.Sprintf("[%s] %s\n", remoteAddr, message)
+		logEntry := skipNumericPrefix(message) + "\n"
 		if _, err := lh.logger.Write([]byte(logEntry)); err != nil {
 			log.Printf("Error writing to log file: %v", err)
 			return
@@ -445,7 +451,7 @@ func messagesHandler(handler *logFileHandler) http.HandlerFunc {
 			defer r.Body.Close()
 
 			for _, msg := range reqBody.Messages {
-				handler.logMessage(r.RemoteAddr, msg)
+				handler.logMessage( msg)
 			}
 			w.Header().Set("Content-Type", "application/json")
 			json.NewEncoder(w).Encode(map[string]string{"status": "success", "message": "Syslog messages received"})
@@ -575,12 +581,12 @@ func main() {
 
 	buffer := make([]byte, 1024)
 	for {
-		n, remoteAddr, err := udpConn.ReadFromUDP(buffer)
+		n, _, err := udpConn.ReadFromUDP(buffer)
 		if err != nil {
 			log.Printf("Error reading UDP message: %v", err)
 			continue
 		}
 		message := strings.TrimSpace(string(buffer[:n]))
-		logHandler.logMessage(remoteAddr.String(), message)
+		logHandler.logMessage( message)
 	}
 }
