@@ -37,13 +37,13 @@ type logFileHandler struct {
 	disableForwarding bool
 	messages          []string
 	anomalies         []string
-	config            *Config  
+	config            *Config
 	muConfig          sync.Mutex
 }
 
 type Config struct {
-	MaxMessages int `json:"maxMessages"`
-	DisableLog  bool `json:"disableLog"`
+	MaxMessages    int    `json:"maxMessages"`
+	DisableLog     bool   `json:"disableLog"`
 	AnomaliesOnly  bool   `json:"anomaliesOnly"`
 	MessagePattern string `json:"messagepattern"`
 	Severity       int    `json:"severity"`
@@ -52,7 +52,7 @@ type Config struct {
 	ApiKey         string `json:"apiKey"`
 	Url            string `json:"url"`
 	Model          string `json:"model"`
-	LogFile string `json:"logfile"`
+	LogFile        string `json:"logfile"`
 }
 
 type syslogMsg struct {
@@ -156,12 +156,15 @@ func skipNumericPrefix(line string) string {
 	return re.ReplaceAllString(line, "")
 }
 
-
-func (lh *logFileHandler) logMessage( message string) {
+func (lh *logFileHandler) logMessage(message string) {
 	lh.mu.Lock()
 	defer lh.mu.Unlock()
+	_, severity, err := parsePriority(message)
 
 	if !lh.disableLogging {
+		if severity >= lh.config.Severity {
+			return
+		}
 		logEntry := skipNumericPrefix(message) + "\n"
 		if _, err := lh.logger.Write([]byte(logEntry)); err != nil {
 			log.Printf("Error writing to log file: %v", err)
@@ -172,11 +175,10 @@ func (lh *logFileHandler) logMessage( message string) {
 	// Store message for web interface
 	lh.messages = append(lh.messages, message)
 	if len(lh.messages) >= lh.config.MaxMessages && lh.config.MaxMessages > 0 {
-		lh.messages = lh.messages[len(lh.messages) - lh.config.MaxMessages:]
+		lh.messages = lh.messages[len(lh.messages)-lh.config.MaxMessages:]
 	}
 
 	if lh.forwardAddr != "" && !lh.disableForwarding {
-		_, severity, err := parsePriority(message)
 		if err != nil {
 			log.Printf("Error parsing syslog message: %v", err)
 			return
@@ -213,13 +215,12 @@ func (lh *logFileHandler) forwardMessage(message string) {
 	}
 }
 
-
 func (lh *logFileHandler) updateConfig(config *Config) {
 	lh.muConfig.Lock()
 	defer lh.muConfig.Unlock()
 	lh.config = config
 	if len(lh.messages) >= lh.config.MaxMessages && lh.config.MaxMessages > 0 {
-		lh.messages = lh.messages[len(lh.messages) - lh.config.MaxMessages:]
+		lh.messages = lh.messages[len(lh.messages)-lh.config.MaxMessages:]
 	}
 }
 
@@ -240,7 +241,7 @@ func renderMessageRows(handler *logFileHandler) (template.HTML, error) {
 
 	config := handler.getConfig()
 	var messages []syslogMsg
-	
+
 	if config.AnomaliesOnly && len(handler.messages) > 0 {
 		if config.ApiKey == "" {
 			return template.HTML("<tr><td colspan='5'>OpenAI API key not found. Please set the OPENAI_API_KEY environment variable and rerun the server.</td></tr>"), nil
@@ -260,14 +261,14 @@ func renderMessageRows(handler *logFileHandler) (template.HTML, error) {
 		}
 		handler.anomalies = append(handler.anomalies, anomalies...)
 		handler.messages = []string{}
-	} 
+	}
 
 	var messagesToRender []string
-	if config.AnomaliesOnly   {
+	if config.AnomaliesOnly {
 		messagesToRender = handler.anomalies
 	} else {
 		messagesToRender = handler.messages
-	}	
+	}
 	if len(messagesToRender) == 0 {
 		return template.HTML("<tr><td colspan='5'>No messages yet.</td></tr>"), nil
 	}
@@ -303,14 +304,7 @@ func renderMessageRows(handler *logFileHandler) (template.HTML, error) {
 				}
 			}
 		}
-		_, msgSeverity, err := parsePriority(msg)
-		if err != nil {
-			log.Printf("Error parsing priority: %v", err)
-			continue
-		}
-		if msgSeverity > config.Severity {
-			continue
-		}
+		
 		messages = append(messages, *syslogMsg)
 	}
 	tmpl, err := template.ParseFiles("templates/message_rows.html")
@@ -329,14 +323,18 @@ func renderMessageRows(handler *logFileHandler) (template.HTML, error) {
 }
 
 func findAnomalies(config LLMConfig, messages []string) ([]string, error) {
+	cleanedMessages := []string{}
+	for _, msg := range messages {
+		cleanedMessages = append(cleanedMessages, skipNumericPrefix(msg))
+	}
 	requestBody := CompletionRequest{
 		Model: config.model,
 		Messages: []Message{
 			{
-				Role:    "user",
+				Role: "user",
 				Content: `Given a list of syslog messages, respond only with lines of text 
 					that start with ANOMALIES: and followed by lines of anomalous syslog messages. 
-					Syslog messages:\n` + strings.Join(messages, "\n "),
+					Syslog messages:\n` + strings.Join(cleanedMessages, "\n "),
 			},
 		},
 	}
@@ -347,6 +345,7 @@ func findAnomalies(config LLMConfig, messages []string) ([]string, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal request: %w", err)
 	}
+
 	req, err := http.NewRequest("POST", url, bytes.NewBuffer(jsonData))
 	if err != nil {
 		return nil, fmt.Errorf("failed to create request: %w", err)
@@ -399,18 +398,7 @@ func removeEmptyStrings(s []string) []string {
 	return result
 }
 func parseSyslogMessage(msg string) (*syslogMsg, error) {
-	if !strings.HasPrefix(msg, "<") {
-		return nil, fmt.Errorf("not a syslog message")
-	}
-	_, _, err := parsePriority(msg)
-	if err != nil {
-		return nil, err
-	}
-	idx := strings.Index(msg, ">")
-	if idx < 0 {
-		return nil, fmt.Errorf("no syslog priority end character")
-	}
-	msg = msg[idx+1:]
+	msg = skipNumericPrefix(msg)
 	parts := strings.SplitN(msg, " ", 6)
 	if len(parts) < 6 {
 		return nil, fmt.Errorf("not enough parts in syslog message")
@@ -459,7 +447,7 @@ func messagesHandler(handler *logFileHandler) http.HandlerFunc {
 			defer r.Body.Close()
 
 			for _, msg := range reqBody.Messages {
-				handler.logMessage( msg)
+				handler.logMessage(msg)
 			}
 			w.Header().Set("Content-Type", "application/json")
 			json.NewEncoder(w).Encode(map[string]string{"status": "success", "message": "Syslog messages received"})
@@ -474,7 +462,7 @@ func configHandler(handler *logFileHandler) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if r.Method == http.MethodGet {
 			w.WriteHeader(http.StatusOK)
-			
+
 			return
 		}
 		if r.Method != http.MethodPost {
@@ -522,7 +510,7 @@ func main() {
 	forwardProto := flag.String("p", "udp", "Forwarding protocol: 'tcp' or 'udp'")
 	forwardLevel := flag.Int("l", 6, "Forwarding priority level")
 	apiAddr := flag.String("w", ":3001", "REST API and Web UI address")
-	debuglog := flag.String("d", "", "debug log file")
+	debuglog := flag.String("d", "/dev/null", "debug log file")
 	flag.Parse()
 
 	if *debuglog != "" {
@@ -532,11 +520,11 @@ func main() {
 		}
 		log.SetOutput(f)
 		log.SetFlags(log.LstdFlags | log.Lshortfile)
-	} else {
+	} else if *debuglog == "/dev/null" {
 		log.SetOutput(io.Discard)
 		log.SetFlags(0)
 	}
-	
+
 	logHandler, err := createLogFileHandler(*logFile, *maxSize, *forwardAddr, *forwardProto,
 		*forwardLevel)
 	if err != nil {
@@ -595,6 +583,6 @@ func main() {
 			continue
 		}
 		message := strings.TrimSpace(string(buffer[:n]))
-		logHandler.logMessage( message)
+		logHandler.logMessage(message)
 	}
 }

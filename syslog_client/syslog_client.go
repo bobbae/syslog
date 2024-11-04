@@ -22,7 +22,7 @@ func main() {
 	app := flag.String("n", "syslog_client", "Application name")
 	message := flag.String("m", "Test syslog message", "The message to send")
 	inputFile := flag.String("i", "", "Input file containing syslog messages")
-	debuglog := flag.String("d", "", "debug log file")
+	debuglog := flag.String("d", "/dev/null", "debug log file")
 
 	flag.Parse()
 
@@ -33,7 +33,7 @@ func main() {
 		}
 		log.SetOutput(f)
 		log.SetFlags(log.LstdFlags | log.Lshortfile)
-	} else {
+	} else if *debuglog == "/dev/null" {
 		log.SetOutput(io.Discard)
 		log.SetFlags(0)
 	}

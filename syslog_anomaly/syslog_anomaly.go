@@ -10,7 +10,6 @@ import (
 	"net/http"
 	"os"
 	"strings"
-	"time"
 )
 
 type SyslogMessages struct {
@@ -42,8 +41,7 @@ type LLMConfig struct {
 	url    string
 }
 
-func findAnomalies(config LLMConfig, messages []string) ([]string, error, time.Duration) {
-	start := time.Now()
+func findAnomalies(config LLMConfig, messages []string) ([]string, error) {
 	requestBody := CompletionRequest{
 		Model: config.model,
 		Messages: []Message{
@@ -55,17 +53,15 @@ func findAnomalies(config LLMConfig, messages []string) ([]string, error, time.D
 			},
 		},
 	}
-	fmt.Println("messages", len(messages))
 	apiKey := config.apiKey
 	url := config.url
 	jsonData, err := json.Marshal(requestBody)
 	if err != nil {
-		return nil, fmt.Errorf("failed to marshal request: %w", err), time.Since(start)
+		return nil, fmt.Errorf("failed to marshal request: %w", err)
 	}
-
 	req, err := http.NewRequest("POST", url, bytes.NewBuffer(jsonData))
 	if err != nil {
-		return nil, fmt.Errorf("failed to create request: %w", err), time.Since(start)
+		return nil, fmt.Errorf("failed to create request: %w", err)
 	}
 
 	if apiKey != "" {
@@ -76,18 +72,18 @@ func findAnomalies(config LLMConfig, messages []string) ([]string, error, time.D
 	client := &http.Client{}
 	resp, err := client.Do(req)
 	if err != nil {
-		return nil, fmt.Errorf("failed to send request: %w", err), time.Since(start)
+		return nil, fmt.Errorf("failed to send request: %w", err)
 	}
 	defer resp.Body.Close()
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return nil, fmt.Errorf("failed to read response: %w", err), time.Since(start)
+		return nil, fmt.Errorf("failed to read response: %w", err)
 	}
 	var completionResponse CompletionResponse
 	if err := json.Unmarshal(body, &completionResponse); err != nil {
 		fmt.Println("Error unmarshalling JSON:", err)
-		return nil, fmt.Errorf("failed to unmarshal response: %w", err), time.Since(start)
+		return nil, fmt.Errorf("failed to unmarshal response: %w", err)
 	}
 
 	anomalyReport := "ANOMALIES:"
@@ -102,8 +98,7 @@ func findAnomalies(config LLMConfig, messages []string) ([]string, error, time.D
 	}
 	fmt.Println("anomalies", len(anomalies))
 
-	elapsed := time.Since(start)
-	return anomalies, nil, elapsed
+	return anomalies, nil
 }
 
 func main() {
@@ -136,16 +131,13 @@ func main() {
 	messages := strings.Split(string(fileContent), "\n")
 	messages = removeEmptyStrings(messages)
 	config := LLMConfig{apiKey: apiKey, url: url, model: model}
-	anomalies, err, elapsed := findAnomalies(config, messages)
+	anomalies, err := findAnomalies(config, messages)
 	if err != nil {
 		log.Fatalf("Error analyzing syslog messages: %v", err)
 	}
-	fmt.Println("Anomalies:")
 	for _, anomaly := range anomalies {
 		fmt.Println(anomaly)
 	}
-	fmt.Println("Total number of anomalies", len(anomalies))
-	fmt.Printf("API call took: %s\n", elapsed)
 }
 
 func removeEmptyStrings(s []string) []string {
