@@ -54,7 +54,7 @@ func findAnomalies(config LLMConfig, messages []string) ([]string, error) {
 			},
 		},
 	}
-
+	fmt.Println("messages",len(messages))
 	apiKey := config.apiKey
 	url := config.url
 	jsonData, err := json.Marshal(requestBody)
@@ -99,6 +99,7 @@ func findAnomalies(config LLMConfig, messages []string) ([]string, error) {
 			break
 		}
 	}
+	fmt.Println("anomalies",len(anomalies))
 
 	return anomalies, nil
 }
